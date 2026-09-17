@@ -93,7 +93,7 @@ void game_init(void) {
     G.angry_spawn_timer = ANGRY_SPAWN_MAX; G.mush_timer = MUSH_TIMEOUT; G.friend_timer = 1;
     G.slow_tick = 0;
     G.state = PS_READY; G.state_timer = READY_FRAMES;
-    G.palette_set = 0; G.hud_dirty = 1; G.dirty_rows = 0xFFFF; G.flash = 0;
+    G.palette_set = 0; G.hud_dirty = 1; G.dirty_rows = 0xFFFF; G.flash = 0; G.turn_timer = 0; G.turn_pose = 0;
     G.best_drop = 0; G.best_chain = 0; G.total_kills = 0;
     /* initial loose oppies, already grown */
     for (i = 0; i < FRIEND_BASE; i++) {
@@ -174,7 +174,13 @@ static void advance_trail(uint8_t old_head, uint8_t grew) {
 
 static void step(void) {
     uint8_t old = cidx(G.px, G.py), ni, grew = 0;
-    if (G.next_dir != D_NONE) { G.dir = G.next_dir; G.next_dir = D_NONE; }
+    if (G.next_dir != D_NONE) {
+        uint8_t vert = (G.dir == D_UP || G.dir == D_DOWN) ? G.dir : G.next_dir;
+        uint8_t horiz = (G.dir == D_LEFT || G.dir == D_RIGHT) ? G.dir : G.next_dir;
+        G.turn_pose = (vert == D_UP ? 1 : 0) | (horiz == D_RIGHT ? 2 : 0);
+        G.turn_timer = TURN_FRAMES;
+        G.dir = G.next_dir; G.next_dir = D_NONE;
+    }
     ni = neighbor(G.px, G.py, G.dir);
     if (ni == 0xFF) { die(); return; }
     if (G.pending_grow) { G.pending_grow = 0; grew = 1; }
@@ -352,6 +358,7 @@ void game_update(uint8_t joy, uint8_t pressed) {
         }
     }
     if (G.drop_anim) G.drop_anim--;
+    if (G.turn_timer) G.turn_timer--;
 
     update_entities();
     update_spawners();

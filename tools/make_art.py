@@ -72,6 +72,15 @@ def gardener_frames(direction):
 GARDENER = {}
 for _d in ('down', 'up', 'left'):
     for _f, _fr in enumerate(gardener_frames(_d)): GARDENER['%s%d' % (_d, _f)] = '\n'.join(_fr)
+# three-quarter turn poses (facing down-left / up-left; mirrored for the right side)
+DIAG_DOWN = ["..1111..", ".111111.", "11111111", "11111111", "11333111", "13333311", "13131311", "13131311", "13333311", ".133311.",
+             "..23211.", ".222221.", ".2322223", ".2322223", ".222222.", ".222222.", ".222222.", "22222222", "22222222",
+             "..3.3...", "..3.3...", "..3.3...", ".11.11..", ".11.11.."]
+DIAG_UP   = ["..1111..", ".111111.", "11111111", "11111111", "13111111", "13111111", "13111111", "13111111", "11111111", ".111111.",
+             "..2221..", ".222222.", ".3222223", ".3222223", ".222222.", ".222222.", ".222222.", "22222222", "22222222",
+             "..3.3...", "..3.3...", "..3.3...", ".11.11..", ".11.11.."]
+GARDENER['diagdown'] = '\n'.join(DIAG_DOWN + ['........'] * 8)
+GARDENER['diagup'] = '\n'.join(DIAG_UP + ['........'] * 8)
 # Oppie as a sprite (title screen hoppers / menu cursor). OBJ palette 6: 1 = body colour, 2 = white, 3 = black
 OPPIE_SPR = """
 ..1111..
@@ -112,7 +121,7 @@ sprite_tiles = []   # list of (name, 16 rows)
 def add_sprite(name, r16):
     assert len(r16) == 16, (name, len(r16))
     sprite_tiles.append((name, r16))
-for k in ['%s%d' % (d, f) for d in ('down', 'up', 'left') for f in range(4)]:
+for k in ['%s%d' % (d, f) for d in ('down', 'up', 'left') for f in range(4)] + ['diagdown', 'diagup']:
     r32 = rows(GARDENER[k])
     add_sprite('SPR_' + k.upper(), r32[:16])          # top object (tile n)
     add_sprite('SPR_' + k.upper() + '_B', r32[16:])   # bottom object (tile n + 2)

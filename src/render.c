@@ -153,13 +153,18 @@ static void draw_sprites(void) {
     }
     if (G.drop_anim) { dir = (G.drop_anim >> 2) & 3; anim = 0; }          /* spin: down, right, up, left */
     else if (G.state == PS_READY) { dir = D_DOWN; anim = 0; }
-    switch (dir) {
-    case D_UP: tile = SPR_UP0; break;
-    case D_DOWN: tile = SPR_DOWN0; break;
-    case D_LEFT: tile = SPR_LEFT0; break;
-    default: tile = SPR_LEFT0; prop = S_FLIPX; break;
+    if (G.turn_timer && !G.drop_anim && G.state == PS_PLAY) {
+        tile = (G.turn_pose & 1) ? SPR_DIAGUP : SPR_DIAGDOWN;
+        if (G.turn_pose & 2) prop = S_FLIPX;
+    } else {
+        switch (dir) {
+        case D_UP: tile = SPR_UP0; break;
+        case D_DOWN: tile = SPR_DOWN0; break;
+        case D_LEFT: tile = SPR_LEFT0; break;
+        default: tile = SPR_LEFT0; prop = S_FLIPX; break;
+        }
+        tile += anim * 4;   /* 4 tiles per frame: top object, then bottom object */
     }
-    tile += anim * 4;   /* 4 tiles per frame: top object, then bottom object */
     if (G.jump) {
         /* parabolic lift, peak 10 px at mid-jump */
         uint8_t t = G.jump > JUMP_FRAMES / 2 ? JUMP_FRAMES - G.jump : G.jump; /* 0..12 */

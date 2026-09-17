@@ -13,6 +13,7 @@
 
 /* ---- tuning (all "unknown" values from the brief live here) ---- */
 #define CELL_FRAMES      8    /* frames to cross one cell: 1 px per frame, 7.5 cells/s */
+#define TURN_FRAMES      4    /* frames the three-quarter turn pose is shown after a turn */
 #define JUMP_FRAMES      16   /* airborne time (2 cells): clears exactly one cell */
 #define MAX_TRAIL        48
 #define MAX_ANGRY        64
@@ -74,6 +75,8 @@ typedef struct {
     uint8_t palette_set;
     uint8_t hud_dirty;
     uint8_t flash;        /* vulnerable enemies drawn white this frame */
+    uint8_t turn_timer;   /* frames left of the turn pose */
+    uint8_t turn_pose;    /* bit0: facing up, bit1: facing right */
     uint16_t dirty_rows;  /* bit per playfield row needing a redraw */
     /* stats */
     uint8_t best_drop, best_chain;
