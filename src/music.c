@@ -45,13 +45,16 @@ void music_stop(void) {
 void music_sfx_hold(uint8_t channels, uint8_t frames) {
     uint8_t ch;
     if (!playing) return;
+    SWITCH_ROM(SONG_BANK);
     for (ch = 0; ch < 4; ch++) if (channels & (1 << ch)) hUGE_mute_channel(ch, HT_CH_MUTE);
+    SWITCH_ROM(HOME_BANK);
     hold_mask |= channels;
     if (frames > hold_frames) hold_frames = frames;
 }
 
 void music_update(void) {
     if (!playing) return;
+    SWITCH_ROM(SONG_BANK);
     if (hold_frames) {
         if (--hold_frames == 0) {
             uint8_t ch;
@@ -59,7 +62,6 @@ void music_update(void) {
             hold_mask = 0;
         }
     }
-    SWITCH_ROM(SONG_BANK);
     hUGE_dosound();
     SWITCH_ROM(HOME_BANK);
     if (frames_left && --frames_left == 0) music_stop();
