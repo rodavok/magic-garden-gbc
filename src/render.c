@@ -212,18 +212,20 @@ static void draw_sprites(void) {
         move_sprite(n, ORG_X + (c % GW) * 8 + 8, ORG_Y + (c / GW) * 8 - 8 + 16 - (G.flask_fall[i] >> 1));
     }
     for (; n < 3 + MAX_HOP_SPRITES + MAX_FLASK; n++) move_sprite(n, 0, 0);
-    /* score pop-ups: up to 4 white digits rising for 60 frames */
+    /* score pop-ups: 3x5 digits, two per 8 px tile, rising for 60 frames */
     for (i = 0; i < MAX_POPS; i++) {
         pop_t *p = &G.pops[i];
-        uint8_t d[4], nd = 0, px, py, k;
-        uint16_t v = p->val;
-        if (p->t == 0) { for (k = 0; k < 4; k++) move_sprite(n++, 0, 0); continue; }
-        do { uint8_t q = 0; while (v >= 10) { v -= 10; q++; } d[nd++] = (uint8_t)v; v = q; } while (v && nd < 4);
-        px = ORG_X + p->x * 8 + 8 + 4 - (uint8_t)(nd * 4);
+        uint8_t w, px, py;
+        if (p->t == 0) { move_sprite(n++, 0, 0); move_sprite(n++, 0, 0); continue; }
+        w = p->val >= 1000 ? 2 : (p->val >= 100 ? 2 : 1);   /* tiles used */
+        px = ORG_X + p->x * 8 + 8 + 4 - w * 4;
         py = ORG_Y + p->y * 8 + 16 - (uint8_t)((60 - p->t) >> 2);
-        for (k = nd; k > 0; k--) { set_sprite_tile(n, SPR_DIGIT0 + d[k - 1] * 2); set_sprite_prop(n, 6); move_sprite(n, px, py); px += 8; n++; }
-        for (k = nd; k < 4; k++) move_sprite(n++, 0, 0);
+        set_sprite_tile(n, SPR_POP0 + i * 4); set_sprite_prop(n, 6); move_sprite(n, px, py); n++;
+        if (w == 2) { set_sprite_tile(n, SPR_POP0 + i * 4 + 2); set_sprite_prop(n, 6); move_sprite(n, px + 8, py); }
+        else move_sprite(n, 0, 0);
+        n++;
     }
+
 }
 
 /* decimal digits by repeated subtraction: no 32-bit division (SDCC's is very slow) */
@@ -257,7 +259,7 @@ static void hud_flush(void) {
     set_bkg_tiles(9, 1, 2, 1, hud_timer);
     set_bkg_tiles(13, 17, 2, 1, hud_mult);
 }
-void hud_draw_all(void) { hud_prepare(); wait_vbl_done(); hud_flush(); }
+void hud_draw_all(void) { hud_prepare(); wait_vbl_done(); hud_flush(); G.hud_dirty = 0; }
 
 /* Phase 1 (any time in the frame): compute everything, touch only shadow OAM and RAM buffers. */
 void render_prepare(void) {
@@ -266,9 +268,35 @@ void render_prepare(void) {
     draw_sprites();
     if (G.hud_dirty) { G.hud_dirty = 0; hud_prepare(); }
 }
+/* 3x5 digit font, one byte per row, bits 7..5 */
+static const uint8_t font3x5[10][5] = {
+    { 0xE0, 0xA0, 0xA0, 0xA0, 0xE0 }, { 0x40, 0xC0, 0x40, 0x40, 0xE0 }, { 0xE0, 0x20, 0xE0, 0x80, 0xE0 },
+    { 0xE0, 0x20, 0x60, 0x20, 0xE0 }, { 0xA0, 0xA0, 0xE0, 0x20, 0x20 }, { 0xE0, 0x80, 0xE0, 0x20, 0xE0 },
+    { 0xE0, 0x80, 0xE0, 0xA0, 0xE0 }, { 0xE0, 0x20, 0x20, 0x20, 0x20 }, { 0xE0, 0xA0, 0xE0, 0xA0, 0xE0 },
+    { 0xE0, 0xA0, 0xE0, 0x20, 0xE0 },
+};
+/* compose the two 8x16 objects of pop-up k (digits in rows 1-5 of the top tile, colour index 2) */
+static void compose_pop(uint8_t k) {
+    uint8_t buf[64], d[4], nd = 0, t, row, i;
+    uint16_t v = G.pops[k].val;
+    memset(buf, 0, 64);
+    do { uint8_t q = 0; while (v >= 10) { v -= 10; q++; } d[nd++] = (uint8_t)v; v = q; } while (v && nd < 4);
+    /* left-to-right digit order */
+    for (i = 0; i < nd / 2; i++) { t = d[i]; d[i] = d[nd - 1 - i]; d[nd - 1 - i] = t; }
+    for (i = 0; i < nd; i++) {
+        uint8_t tile = (i >> 1) * 2, shift = (i & 1) ? 4 : 0;   /* tile 0 or 2 (top halves), digit at x 0 or 4 */
+        for (row = 0; row < 5; row++) buf[tile * 16 + (row + 1) * 2 + 1] |= font3x5[d[i]][row] >> shift;
+    }
+    set_sprite_data(SPR_POP0 + k * 4, 4, buf);
+}
+
 /* Phase 2 (right after wait_vbl_done): VRAM + palette writes only. */
 void render_flush(void) {
     if (pal_pending) { pal_pending = 0; palettes_apply(cur_set); }
+    if (G.pop_dirty) {
+        uint8_t k;
+        for (k = 0; k < MAX_POPS; k++) if (G.pop_dirty & (1 << k)) { compose_pop(k); G.pop_dirty &= (uint8_t)~(1 << k); break; }   /* one per frame */
+    }
     flush_rows();
     hud_flush();
 }

@@ -140,11 +140,9 @@ for k in ['%s%d' % (d, f) for d in ('down', 'up', 'left') for f in range(4)] + [
 add_sprite('SPR_FLASK', ['........']*8 + rows(FLASK))
 add_sprite('SPR_SHADOW', ['........']*8 + rows(SHADOW))
 add_sprite('SPR_OPPIE', ['........']*8 + rows(OPPIE_SPR))
-DIGIT_SPRITES = True
-for _d in '0123456789':
-    _g = FONT_DIGITS[_d]
-    _r = ['.' + ''.join('2' if b == '1' else '.' for b in row) + '..' for row in _g] + ['........'] * 9
-    add_sprite('SPR_DIGIT' + _d, _r)
+# dynamic tiles for score pop-ups: 6 pop-ups x 2 objects (8x16), composed at runtime from a 3x5 font
+for _k in range(12):
+    add_sprite('SPR_POP%d' % _k, ['........'] * 16)
 
 # ------------------------------------------------------------------ BG tiles
 bg = []  # (name, 8 rows)

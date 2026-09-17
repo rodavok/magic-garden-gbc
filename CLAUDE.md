@@ -20,7 +20,7 @@ SAMEBOY_BOOT=~/.local/opt/SameBoy-1.0.3/build/bin/BootROMs/cgb_boot.bin ./tools/
 ## Layout
 
 - `include/game.h` game state struct `game_t` (field order matters: `tools/gbmem.py` parses it) and all tuning constants
-- `src/game.c` rules; `src/render.c` BG rows/sprites/HUD; `src/main.c` state machine (title, scores, play, over)
+- `src/game.c` rules; `src/render.c` BG rows/sprites/HUD; `src/main.c` main loop; `src/screens.c` title, scores, ending (bank 1); `src/save.c` SRAM
 - `src/palettes.c` 4 in-game palette sets + title set; `src/sfx.c` register-level sound effects
 - `tools/make_art.py` all pixel art as text + frame/title tile maps -> generated `src/gfx_data.c` (committed, ROM bank 1)
 - `tools/gml_dump.py` disassembles the original's GameMaker bytecode (reference/gml/, git-ignored)
@@ -68,7 +68,7 @@ SAMEBOY_BOOT=~/.local/opt/SameBoy-1.0.3/build/bin/BootROMs/cgb_boot.bin ./tools/
 3. Ending polish: the witch walking in beside the Gardener, a happy sprite, the original's credit roll timing
 4. Palette fade on transitions; "PUSH RIGHT OR DOWN" hint while waiting at the start
 5. Witch animation when she spawns mushrooms; richer appear/stun frames; flash hop sprites while powered
-6. Cascading drop-off conversion (10-frame stagger with a clear effect) and score pop-ups (o27_Points)
-7. Player bump animation on death (o27_PlayerBump) and the original game-over flow
+6. Clear effect frames on the cascading drop-off (FollowClear animation)
+7. The original game-over flow (60-frame bump, then the UFO 50 frame's GAME OVER card)
 8. Easter eggs ("I LOVE JESCA!" after inactivity, running in circles) and the OVER-GROW cheat; tutorial
 9. Remove `dbg[]` / `frame_count` diagnostics once tuning is done

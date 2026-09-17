@@ -114,6 +114,7 @@ void game_init(void) {
     G.trail_len = 0; G.n_angry = 0; G.n_appear = 0; G.n_flask = 0; G.n_friend = 0; G.hop_sprites = 0;
     G.clear_n = 0; G.clear_k = 0; G.clear_timer = 0;
     for (i = 0; i < MAX_POPS; i++) G.pops[i].t = 0;
+    G.pop_dirty = 0;
     G.px = 1; G.py = 1; G.dir = D_RIGHT; G.dir_choice = D_RIGHT; G.sub = 0; G.turned = 0;
     G.z = 0; G.zvel = 0; G.pending_grow = 0; G.drop_anim = 0; G.turn_timer = 0; G.turn_pose = 0;
     G.pad_last_size = 0xFF; G.pad_anim = 0;
@@ -147,7 +148,7 @@ static void power_expire(void) {
 static void add_pop(uint8_t cell, uint16_t val) {
     uint8_t k;
     for (k = 0; k < MAX_POPS; k++) if (G.pops[k].t == 0) {
-        G.pops[k].x = cell % GW; G.pops[k].y = cell / GW; G.pops[k].t = 60; G.pops[k].val = val; return;
+        G.pops[k].x = cell % GW; G.pops[k].y = cell / GW; G.pops[k].t = 60; G.pops[k].val = val; G.pop_dirty |= (uint8_t)(1 << k); return;
     }
 }
 static void kill_enemy(uint8_t i) {
