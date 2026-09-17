@@ -53,11 +53,16 @@ void main(void) {
     cpu_fast();
     sfx_init();
     DISPLAY_OFF;
-    palettes_apply(0);
-    LCDC_REG |= LCDCF_BG8000;
+    /* Assume nothing about the state a flash-cart menu or boot ROM left behind:
+       scroll, window, both tile-map banks, OAM and palettes are all reset with the LCD off. */
+    SCX_REG = 0; SCY_REG = 0; WX_REG = 7; WY_REG = 144;
+    LCDC_REG = LCDCF_BG8000 | LCDCF_BGON;   /* LCD off, BG map at 0x9800, tiles at 0x8000, sprites off */
     set_sprite_data(0, SPR_TILE_COUNT, spr_tiles);
     set_sprite_data(BG_BASE, BG_TILE_COUNT, bg_tiles);
-    SHOW_BKG;
+    fill_bkg_rect(0, 0, 32, 32, T_BLACK);
+    VBK_REG = 1; fill_bkg_rect(0, 0, 32, 32, 7); VBK_REG = 0;
+    { uint8_t i; for (i = 0; i < 40; i++) { set_sprite_tile(i, 0); set_sprite_prop(i, 0); move_sprite(i, 0, 0); } }
+    palettes_apply(0);
     show_title();
     joy_prev = 0;
     while (1) {
