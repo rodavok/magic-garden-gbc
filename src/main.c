@@ -5,6 +5,7 @@
 #include "game.h"
 #include "gfx_data.h"
 #include "sfx.h"
+#include "save.h"
 
 enum { ST_TITLE, ST_SCORES, ST_PLAY, ST_OVER };
 
@@ -52,17 +53,32 @@ static void title_animate(void) {
     }
 }
 
+/* digits from most significant: simple repeated subtraction (no 32-bit division) */
+static void put_number_ms(uint8_t *buf, uint8_t x, uint8_t y, uint32_t v, uint8_t digits) {
+    static const uint32_t pw[6] = { 100000UL, 10000UL, 1000UL, 100UL, 10UL, 1UL };
+    uint8_t *p = buf + y * 20 + x; uint8_t k;
+    for (k = 6 - digits; k < 6; k++) { uint8_t d = 0; while (v >= pw[k] && d < 9) { v -= pw[k]; d++; } *p++ = FONT_FIRST + d; }
+}
+
 static void show_scores(void) {
     static const char *rank[5] = { "1ST", "2ND", "3RD", "4TH", "5TH" };
     uint8_t i;
     HIDE_SPRITES;
     hide_sprites();
     memset(screen_buf, T_BLACK, sizeof screen_buf);
-    map_text(screen_buf, 4, 2, "HIGH SCORES");
-    for (i = 0; i < 5; i++) {
-        map_text(screen_buf, 3, 5 + i * 2, rank[i]);
-        map_text(screen_buf, 8, 5 + i * 2, "000000");
+    map_text(screen_buf, 4, 1, "HIGH SCORES");
+    map_text(screen_buf, 1, 3, "RANK  SCORE  SAVED");
+    for (i = 0; i < HS_ENTRIES; i++) {
+        map_text(screen_buf, 1, 4 + i, rank[i]);
+        put_number_ms(screen_buf, 6, 4 + i, SAVE.table[i].score, 6);
+        put_number_ms(screen_buf, 15, 4 + i, SAVE.table[i].saved, 3);
     }
+    map_text(screen_buf, 1, 10, "BIGGEST DROP-OFF");
+    put_number_ms(screen_buf, 17, 10, SAVE.best_drop, 2);
+    map_text(screen_buf, 1, 11, "MOST CLEARED");
+    put_number_ms(screen_buf, 17, 11, SAVE.best_chain, 2);
+    map_text(screen_buf, 1, 12, "TOTAL CLEARED");
+    put_number_ms(screen_buf, 16, 12, SAVE.total_kills, 3);
     map_text(screen_buf, 6, 16, "PRESS B");
     vram_draw_map(screen_buf, 0);
 }
@@ -84,6 +100,7 @@ void main(void) {
     uint8_t state = ST_TITLE, joy, pressed;
     cpu_fast();
     SWITCH_ROM(1);   /* graphics data lives in bank 1 and stays mapped */
+    save_load();
     sfx_init();
     DISPLAY_OFF;
     /* Assume nothing about the state a flash-cart menu or boot ROM left behind:
@@ -134,11 +151,10 @@ void main(void) {
             G.dbg[2] = LY_REG;
             render_flush();
             G.dbg[3] = LY_REG;
-            if (G.state == PS_DEAD && G.state_timer == 0) {
-                hud_text(4, 8, "  GAME OVER ");
-                state = ST_OVER;
-            } else if (G.state == PS_WIN && G.state_timer == 0) {
-                hud_text(4, 8, "GARDEN SAVED");
+            if ((G.state == PS_DEAD || G.state == PS_WIN) && G.state_timer == 0) {
+                uint8_t rank = save_insert(G.score, G.saved, G.best_drop, G.best_chain, G.total_kills);
+                hud_text(4, 8, G.state == PS_WIN ? "GARDEN SAVED" : "  GAME OVER ");
+                if (rank) { hud_text(4, 10, " HIGH SCORE ");  }
                 state = ST_OVER;
             }
         }
