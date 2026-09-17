@@ -23,31 +23,45 @@ def hflip(rows): return [r[::-1] for r in rows]
 
 # ------------------------------------------------------------------ sprites (OBJ, 8x16 mode)
 # Gardener: 1 = dark hair/outline, 2 = purple dress, 3 = white/skin
-# Gardener, 8x16 OBJ, 1 = dark purple (hair/outline/boots), 2 = purple dress, 3 = white (face, socks, collar)
-# Four walk frames per direction; frames 1 and 3 bob up one pixel.
-HEAD_DOWN = ["..1111..", ".111111.", "11111111", "11333311", "13133131", "13133131", "13333331", ".133331."]
-HEAD_UP   = ["..1111..", ".111111.", "11111111", "11111111", "11111111", "11111111", ".111111.", "..1111.."]
-HEAD_LEFT = ["..1111..", ".111111.", "11111111", "13331111", "11311111", "13331111", "13331111", ".133111."]
-BODY_DOWN = [".232232.", "32222223", ".222222.", "..2222.."]
-BODY_UP   = [".222222.", "32222223", ".222222.", "..2222.."]
-BODY_LEFT = [".222222.", ".322222.", ".222222.", "..2222.."]
-LEGS = {
- 'down': [("..3..3..", ".11..11."), (".3...3..", "11...11."), ("..3..3..", ".11..11."), ("..3...3.", ".11...11")],
- 'up':   [("..3..3..", ".11..11."), (".3...3..", "11...11."), ("..3..3..", ".11..11."), ("..3...3.", ".11...11")],
- 'left': [("..3.3...", ".11.11.."), (".3...3..", "11...11."), ("...33...", "..1111.."), (".3...3..", "11...11.")],
+# Gardener, 8x24 (two stacked 8x16 OBJs; bottom object has 8 blank rows).
+# 1 = dark purple (hair/outline/boots), 2 = purple dress, 3 = white (face, collar, socks).
+# Four walk frames per direction: legs and arms only, no vertical bob.
+HEAD = {
+ 'down': ["..1111..", ".111111.", "11111111", "11111111", "11333311", "13333331", "13133131", "13133131", "13333331", ".133331."],
+ 'up':   ["..1111..", ".111111.", "11111111", "11111111", "11111111", "11111111", "11111111", "11111111", "11111111", ".111111."],
+ 'left': ["..1111..", ".111111.", "11111111", "11111111", "11333111", "13333111", "13133111", "13133111", "13333111", ".133111."],
 }
-ARMS_LEFT = [".322222.", "..32222.", ".322222.", "3.22222."]   # arm swing on the side view
+TORSO = {   # 9 rows; frame-specific arm rows are patched in below
+ 'down': ["..2332..", ".222222.", "32222223", "32222223", ".222222.", ".222222.", ".222222.", "22222222", "22222222"],
+ 'up':   ["..2222..", ".222222.", "32222223", "32222223", ".222222.", ".222222.", ".222222.", "22222222", "22222222"],
+ 'left': ["..2322..", ".222222.", ".322222.", ".322222.", ".222222.", ".222222.", ".222222.", "22222222", "22222222"],
+}
+ARMS = {    # rows 2-3 of the torso per frame (subtle swing)
+ 'down': [("32222223", "32222223"), ("32222223", ".2222223"), ("32222223", "32222223"), ("32222223", "3222222.")],
+ 'up':   [("32222223", "32222223"), (".2222223", "32222223"), ("32222223", "32222223"), ("3222222.", "32222223")],
+ 'left': [(".322222.", ".322222."), ("..32222.", "..32222."), (".322222.", ".322222."), ("3.22222.", "3.22222.")],
+}
+LEGS = {    # 5 rows: legs (3) + boots (2)
+ 'down': [("..3..3..", "..3..3..", "..3..3..", ".11..11.", ".11..11."),
+          ("..3..3..", ".11..3..", ".11..3..", "....11..", "....11.."),
+          ("..3..3..", "..3..3..", "..3..3..", ".11..11.", ".11..11."),
+          ("..3..3..", "..3..11.", "..3..11.", "..11....", "..11....")],
+ 'up':   [("..3..3..", "..3..3..", "..3..3..", ".11..11.", ".11..11."),
+          ("..3..3..", ".11..3..", ".11..3..", "....11..", "....11.."),
+          ("..3..3..", "..3..3..", "..3..3..", ".11..11.", ".11..11."),
+          ("..3..3..", "..3..11.", "..3..11.", "..11....", "..11....")],
+ 'left': [("..3.3...", "..3.3...", "..3.3...", ".11.11..", ".11.11.."),
+          (".3...3..", ".3...3..", "11...3..", "11..11..", "....11.."),
+          ("...33...", "...33...", "...33...", "..1111..", "..1111.."),
+          (".3...3..", ".3...3..", ".3...11.", "11...11.", "11......")],
+}
 def gardener_frames(direction):
-    head = {'down': HEAD_DOWN, 'up': HEAD_UP, 'left': HEAD_LEFT}[direction]
-    body = {'down': BODY_DOWN, 'up': BODY_UP, 'left': BODY_LEFT}[direction]
     out = []
     for f in range(4):
-        b = list(body)
-        if direction == 'left': b[1] = ARMS_LEFT[f]
-        legs = LEGS[direction][f]
-        frame = ['........'] + head + b + [legs[0], legs[1]] + ['........']
-        if f in (1, 3): frame = frame[1:] + ['........']   # bob up
-        out.append(frame[:16])
+        torso = list(TORSO[direction]); torso[2], torso[3] = ARMS[direction][f]
+        frame = HEAD[direction] + torso + list(LEGS[direction][f])
+        assert len(frame) == 24
+        out.append(frame + ['........'] * 8)
     return out
 GARDENER = {}
 for _d in ('down', 'up', 'left'):
@@ -93,7 +107,9 @@ def add_sprite(name, r16):
     assert len(r16) == 16, (name, len(r16))
     sprite_tiles.append((name, r16))
 for k in ['%s%d' % (d, f) for d in ('down', 'up', 'left') for f in range(4)]:
-    add_sprite('SPR_' + k.upper(), rows(GARDENER[k]))
+    r32 = rows(GARDENER[k])
+    add_sprite('SPR_' + k.upper(), r32[:16])          # top object (tile n)
+    add_sprite('SPR_' + k.upper() + '_B', r32[16:])   # bottom object (tile n + 2)
 add_sprite('SPR_FLASK', ['........']*8 + rows(FLASK))
 add_sprite('SPR_SHADOW', ['........']*8 + rows(SHADOW))
 add_sprite('SPR_OPPIE', ['........']*8 + rows(OPPIE_SPR))
@@ -593,8 +609,8 @@ big_text(5, 2, 'MAGIC')
 big_text(4, 5, 'GARDEN')
 def ttext(x, y, st):
     for i, ch in enumerate(st): tput(x + i, y, 'T_FONT_' + str(ord(ch)), 7)
-ttext(6, 11, 'GAME START')
-ttext(6, 12, 'HIGH SCORES')
+ttext(5, 11, 'GAME START')
+ttext(5, 12, 'HIGH SCORES')
 ttext(2, 16, '@1984 LX SYSTEMS')
 
 # ------------------------------------------------------------------ emit

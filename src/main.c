@@ -38,7 +38,7 @@ static void show_title(void) {
 /* hop: 24-frame cycle, parabolic lift up to 6 px, moving while airborne */
 static void title_animate(void) {
     uint8_t i;
-    move_sprite(0, 4 * 8 + 8, (11 + menu_sel) * 8 + 8);
+    move_sprite(0, 3 * 8 + 8, (11 + menu_sel) * 8 + 8);
     for (i = 0; i < N_HOP; i++) {
         uint8_t t = hop_t[i], lift = 0;
         if (t < 16) {

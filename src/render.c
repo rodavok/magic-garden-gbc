@@ -64,8 +64,8 @@ void render_init(void) {
     SPRITES_8x16;
     for (i = 0; i < 40; i++) { set_sprite_tile(i, 0); move_sprite(i, 0, 0); }
     vram_draw_map(frame_map, frame_attr);
-    set_sprite_prop(0, 0);
-    set_sprite_tile(1, SPR_SHADOW); set_sprite_prop(1, 5);
+    set_sprite_prop(0, 0); set_sprite_prop(1, 0);
+    set_sprite_tile(2, SPR_SHADOW); set_sprite_prop(2, 5);
     cur_set = 0xFF;
     G.hud_dirty = 1;
 }
@@ -141,10 +141,10 @@ void render_grid_full(void) {
 }
 
 static void draw_sprites(void) {
-    uint8_t tile, prop = 0, sx, sy, i, n = 2, lift = 0, dir = G.dir;
+    uint8_t tile, prop = 0, sx, sy, i, n = 3, lift = 0, dir = G.dir;
     uint8_t off = (uint8_t)((G.sub * 8) / CELL_FRAMES);
     uint8_t anim = (G.state == PS_PLAY) ? (uint8_t)((G.frame_count / 3) & 3) : 0;
-    sx = ORG_X + G.px * 8; sy = ORG_Y + G.py * 8 - 8;
+    sx = ORG_X + G.px * 8; sy = ORG_Y + G.py * 8 - 16;   /* 24 px tall, feet in the cell */
     switch (dir) {
     case D_UP: sy -= off; break;
     case D_DOWN: sy += off; break;
@@ -159,15 +159,18 @@ static void draw_sprites(void) {
     case D_LEFT: tile = SPR_LEFT0; break;
     default: tile = SPR_LEFT0; prop = S_FLIPX; break;
     }
-    tile += anim * 2;
+    tile += anim * 4;   /* 4 tiles per frame: top object, then bottom object */
     if (G.jump) {
         /* parabolic lift, peak 10 px at mid-jump */
         uint8_t t = G.jump > JUMP_FRAMES / 2 ? JUMP_FRAMES - G.jump : G.jump; /* 0..12 */
         lift = (uint8_t)((t * 10) / (JUMP_FRAMES / 2));
-        move_sprite(1, sx + 8, sy + 16);
-    } else move_sprite(1, 0, 0);
-    if (G.state == PS_DEAD && (G.state_timer & 4)) { move_sprite(0, 0, 0); }
-    else { set_sprite_tile(0, tile); set_sprite_prop(0, prop); move_sprite(0, sx + 8, sy + 16 - lift); }
+        move_sprite(2, sx + 8, sy + 16 + 16);   /* shadow at the feet */
+    } else move_sprite(2, 0, 0);
+    if (G.state == PS_DEAD && (G.state_timer & 4)) { move_sprite(0, 0, 0); move_sprite(1, 0, 0); }
+    else {
+        set_sprite_tile(0, tile); set_sprite_prop(0, prop); move_sprite(0, sx + 8, sy + 16 - lift);
+        set_sprite_tile(1, tile + 2); set_sprite_prop(1, prop); move_sprite(1, sx + 8, sy + 32 - lift);
+    }
     /* flasks as sprites */
     for (i = 0; i < G.n_flask; i++, n++) {
         uint8_t c = G.flask_list[i];
