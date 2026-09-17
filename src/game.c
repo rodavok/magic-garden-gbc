@@ -32,7 +32,7 @@ static void set_cell(uint8_t i, uint8_t type) { G.grid[i] = type; DIRTY_CELL(i);
 
 static void add_angry(uint8_t i) {
     if (G.n_angry >= MAX_ANGRY) { set_cell(i, C_EMPTY); return; }
-    set_cell(i, C_ANGRY); G.gstate[i] = A_IDLE; G.gtimer[i] = HOP_MIN + rnd(64);
+    set_cell(i, C_ANGRY); G.gstate[i] = A_IDLE; G.gtimer[i] = HOP_MIN + rnd(128);
     G.angry_list[G.n_angry++] = i;
 }
 static void remove_angry(uint8_t i) { set_cell(i, C_EMPTY); list_remove(G.angry_list, &G.n_angry, i); }
@@ -93,7 +93,7 @@ void game_init(void) {
     G.angry_spawn_timer = ANGRY_SPAWN_MAX; G.mush_timer = MUSH_TIMEOUT; G.friend_timer = 1;
     G.slow_tick = 0;
     G.state = PS_READY; G.state_timer = READY_FRAMES;
-    G.palette_set = 0; G.hud_dirty = 1; G.dirty_rows = 0xFFFF;
+    G.palette_set = 0; G.hud_dirty = 1; G.dirty_rows = 0xFFFF; G.flash = 0;
     G.best_drop = 0; G.best_chain = 0; G.total_kills = 0;
     /* initial loose oppies, already grown */
     for (i = 0; i < FRIEND_BASE; i++) {
@@ -231,7 +231,7 @@ static void do_drop(void) {
 static uint8_t update_angry(uint8_t i) {
     uint8_t s = G.gstate[i], st = A_STATE(s);
     if (st == A_STUN) {
-        if (--G.gtimer[i] == 0) { G.gstate[i] = A_IDLE; G.gtimer[i] = HOP_MIN + rnd(64); DIRTY_CELL(i); }
+        if (--G.gtimer[i] == 0) { G.gstate[i] = A_IDLE; G.gtimer[i] = HOP_MIN + rnd(128); DIRTY_CELL(i); }
         return i;
     }
     if (st == A_IDLE) {
@@ -245,7 +245,7 @@ static uint8_t update_angry(uint8_t i) {
         while (tries--) {
             uint8_t t = neighbor(x, y, d);
             if (t != 0xFF && G.grid[t] == C_EMPTY && t != pc) {
-                set_cell(t, C_ANGRY); G.gstate[t] = A_IDLE; G.gtimer[t] = HOP_MIN + rnd(64);
+                set_cell(t, C_ANGRY); G.gstate[t] = A_IDLE; G.gtimer[t] = HOP_MIN + rnd(128);
                 set_cell(i, C_EMPTY); G.gstate[i] = 0;
                 return t;
             }
@@ -320,11 +320,19 @@ void game_update(uint8_t joy, uint8_t pressed) {
         return;
     }
     G.slow_tick = (G.slow_tick + 1) & 3;
-    /* input */
-    if (joy & J_UP)         { if (G.dir != D_DOWN)  G.next_dir = D_UP; }
-    else if (joy & J_DOWN)  { if (G.dir != D_UP)    G.next_dir = D_DOWN; }
-    else if (joy & J_LEFT)  { if (G.dir != D_RIGHT) G.next_dir = D_LEFT; }
-    else if (joy & J_RIGHT) { if (G.dir != D_LEFT)  G.next_dir = D_RIGHT; }
+    /* input: a turn early in a cell applies at once (snapping back to the cell centre);
+       later presses are queued for the next cell boundary */
+    {
+        uint8_t want = D_NONE;
+        if (joy & J_UP)         { if (G.dir != D_DOWN)  want = D_UP; }
+        else if (joy & J_DOWN)  { if (G.dir != D_UP)    want = D_DOWN; }
+        else if (joy & J_LEFT)  { if (G.dir != D_RIGHT) want = D_LEFT; }
+        else if (joy & J_RIGHT) { if (G.dir != D_LEFT)  want = D_RIGHT; }
+        if (want != D_NONE && want != G.dir) {
+            if (G.sub < TURN_WINDOW && G.jump == 0) { G.dir = want; G.sub = 0; G.next_dir = D_NONE; }
+            else G.next_dir = want;
+        }
+    }
     if ((pressed & J_A) && G.jump == 0) { G.jump = JUMP_FRAMES; sfx_jump(); }
     if (pressed & J_B) do_drop();
     if (G.state != PS_PLAY) return;
@@ -351,6 +359,11 @@ void game_update(uint8_t joy, uint8_t pressed) {
     update_entities();
     update_spawners();
 
+    /* vulnerable enemies flash blue/white every 6 frames while a flask is active */
+    {
+        uint8_t f = G.power_timer ? ((G.frame_count / 6) & 1) : 0;
+        if (f != G.flash) { G.flash = f; G.dirty_rows = 0xFFF; }
+    }
     /* power timer */
     if (G.power_timer) {
         if (--G.power_tick == 0) {

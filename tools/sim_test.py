@@ -98,8 +98,20 @@ check('T6b mushroom killed, score 70', rd('score') == 70 and rd('state') == PS_P
 # T6c power expiry resets chain/mult
 wr('power_timer', 1); wr('power_tick', 1); tick(2)
 check('T6c power expired', rd('power_timer') == 0 and rd('mult') == 1 and rd('chain') == 0, (rd('power_timer'), rd('mult'), rd('chain')))
+# T8 turn rule: early press turns at once (sub resets), late press is queued for the boundary
+tick(CELL - rd('sub'))                       # player at (0,9)? no: aligned at a boundary, moving down at x=0
+check('T8 aligned', rd('sub') == 0, rd('sub'))
+tick(1)                                       # sub = 1 (< TURN_WINDOW)
+press('right', 2)
+check('T8 early press turns now', rd('dir') == 1 and rd('sub') <= 2 and rd('next_dir') == 255, (rd('dir'), rd('sub'), rd('next_dir')))
+tick(6 - rd('sub'))                           # sub = 6
+press('down', 2)
+check('T8 late press queued', rd('dir') == 1 and rd('next_dir') == 2, (rd('dir'), rd('next_dir')))
+tick(CELL - rd('sub'))                        # boundary: queued turn applies
+check('T8 queued turn applied at boundary', rd('dir') == 2 and rd('next_dir') == 255, (rd('dir'), rd('next_dir')))
+press('left', 2); tick(CELL - rd('sub'))      # back to x=0 for T7
 # T7 death: angry ahead while unpowered
-poke_angry(0, 10); step_once()
+poke_angry(rd('px') + (0 if rd('dir') != 1 else 1), rd('py') + (1 if rd('dir') == 2 else 0)); step_once()
 check('T7 dead', rd('state') == PS_DEAD, rd('state'))
 tick(100); shot('t7_gameover')
 pb.stop(save=False)

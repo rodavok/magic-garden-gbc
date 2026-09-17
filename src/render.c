@@ -88,17 +88,17 @@ static void prepare_row(uint8_t y) {
             case C_TRAIL:  t = T_OPPIE_HAPPY; break;
             case C_ANGRY:
                 a += blue_add;
-                if (A_STATE(s) == A_STUN) t = T_OPPIE_STUN;
+                if (A_STATE(s) == A_STUN) t = G.flash ? T_OPPIE_STUN_W : T_OPPIE_STUN;
                 else if (A_STATE(s) == A_LOOK) {
                     switch (A_DIR(s)) {
-                    case D_UP: t = T_OPPIE_LOOK_U; break;
-                    case D_DOWN: t = T_OPPIE_LOOK_D; break;
-                    case D_LEFT: t = T_OPPIE_LOOK_L; break;
-                    default: t = T_OPPIE_LOOK_L; a |= S_FLIPX; break;
+                    case D_UP: t = G.flash ? T_OPPIE_LOOK_U_W : T_OPPIE_LOOK_U; break;
+                    case D_DOWN: t = G.flash ? T_OPPIE_LOOK_D_W : T_OPPIE_LOOK_D; break;
+                    case D_LEFT: t = G.flash ? T_OPPIE_LOOK_L_W : T_OPPIE_LOOK_L; break;
+                    default: t = G.flash ? T_OPPIE_LOOK_L_W : T_OPPIE_LOOK_L; a |= S_FLIPX; break;
                     }
-                } else t = T_OPPIE;
+                } else t = G.flash ? T_OPPIE_W : T_OPPIE;
                 break;
-            case C_MUSH: a += blue_add; t = T_MUSH; break;
+            case C_MUSH: a += blue_add; t = (G.flash && G.power_mush) ? T_MUSH_W : T_MUSH; break;
             case C_APPEAR_ANGRY: a += blue_add; /* fallthrough */
             case C_APPEAR_FRIEND: {
                 uint8_t tm = G.gtimer[i];

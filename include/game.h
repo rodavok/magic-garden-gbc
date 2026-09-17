@@ -13,6 +13,7 @@
 
 /* ---- tuning (all "unknown" values from the brief live here) ---- */
 #define CELL_FRAMES      12   /* frames to cross one cell (5 cells/s) */
+#define TURN_WINDOW      3    /* a turn pressed within the first 25% of a cell applies at once */
 #define JUMP_FRAMES      24   /* airborne time: clears exactly one cell */
 #define MAX_TRAIL        48
 #define MAX_ANGRY        64
@@ -20,9 +21,9 @@
 #define MAX_FLASK        6
 #define FRIEND_BASE      3    /* loose friendly oppies kept on the field */
 #define APPEAR_FRAMES    40
-#define LOOK_FRAMES      20
+#define LOOK_FRAMES      45   /* pause after turning to look before hopping */
 #define STUN_FRAMES      180
-#define HOP_MIN          60
+#define HOP_MIN          150  /* idle frames between hops (+ random 0..127) */
 #define ANGRY_SPAWN_MAX  600  /* frames between passive angry spawns at start */
 #define ANGRY_SPAWN_MIN  240
 #define MUSH_TIMEOUT     1200 /* frames without a save before the witch acts */
@@ -73,6 +74,7 @@ typedef struct {
     uint8_t state_timer;
     uint8_t palette_set;
     uint8_t hud_dirty;
+    uint8_t flash;        /* vulnerable enemies drawn white this frame */
     uint16_t dirty_rows;  /* bit per playfield row needing a redraw */
     /* stats */
     uint8_t best_drop, best_chain;
