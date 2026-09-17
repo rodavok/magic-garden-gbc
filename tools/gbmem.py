@@ -1,7 +1,7 @@
 """Shared helper: game_t layout from include/game.h (SDCC packs structs) + _G address from the .noi file."""
 import re, os
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-SZ = {'uint8_t': 1, 'uint16_t': 2, 'uint32_t': 4}
+SZ = {'uint8_t': 1, 'int8_t': 1, 'uint16_t': 2, 'int16_t': 2, 'uint32_t': 4}
 
 def layout(noi_path=None):
     hdr = open(os.path.join(ROOT, 'include/game.h')).read()

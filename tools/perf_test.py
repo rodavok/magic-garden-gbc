@@ -8,9 +8,11 @@ rom = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file_
 pb = PyBoy(rom, window="null", cgb=True); pb.set_emulation_speed(0); M = Mem(pb, rom.replace('.gbc', '.noi'))
 pb.tick(200, True); pb.button_press('start'); pb.tick(5, True); pb.button_release('start')
 for _ in range(400):
-    if M.rd('state') == 1: break
+    if M.rd('state') == 0 and M.rd('px') == 1: break
     pb.tick(1, True)
-else:
+pb.tick(30, True)
+pb.button_press('down'); pb.tick(3, True); pb.button_release('down')
+if M.rd('state') != 1:
     print('never reached play state; state =', M.rd('state')); sys.exit(1)
 pb.tick(30, True)
 a = M.rd('frame_count'); pb.tick(120, True); b = M.rd('frame_count')

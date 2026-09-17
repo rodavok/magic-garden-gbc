@@ -17,3 +17,4 @@ reference/audio/
 __pycache__/
 reference/*.png
 reference/sprites/*.png
+reference/gml/

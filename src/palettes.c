@@ -25,8 +25,8 @@ static const uint16_t obj_pal[8 * 4] = {
     0, C(0,106,180), C(39,186,219), WHITE,   /* 3 blue flask */
     0, C(254,112,0), C(232,234,74), WHITE,   /* 4 gold flask */
     0, C(20,20,40),  C(52,0,88),    WHITE,   /* 5 shadow */
-    0, RED, WHITE, BLACK,                    /* 6 oppie sprite (title) */
-    0, WHITE, WHITE, WHITE,
+    0, RED, WHITE, BLACK,                    /* 6 red oppie sprite (title) */
+    0, BLUE, WHITE, BLACK,                   /* 7 blue oppie sprite (hopping enemies) */
 };
 
 /* title screen: 0 big letters (yellow + olive shadow), 1 vines, 7 menu text */

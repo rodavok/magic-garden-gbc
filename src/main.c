@@ -83,6 +83,7 @@ static void start_game(void) {
 void main(void) {
     uint8_t state = ST_TITLE, joy, pressed;
     cpu_fast();
+    SWITCH_ROM(1);   /* graphics data lives in bank 1 and stays mapped */
     sfx_init();
     DISPLAY_OFF;
     /* Assume nothing about the state a flash-cart menu or boot ROM left behind:
@@ -101,7 +102,7 @@ void main(void) {
     joy_prev = 0;
     while (1) {
         /* phase 1: logic + RAM-side rendering, during the visible frame (from scanline 2) */
-        while (LY_REG != 2) ;
+        while (LY_REG >= 144 || LY_REG < 2) ;   /* start the logic phase at scanline 2, or at once if a flush ran late */
         joy = joypad();
         pressed = joy & ~joy_prev;
         joy_prev = joy;
