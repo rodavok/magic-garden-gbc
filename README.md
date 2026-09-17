@@ -47,7 +47,7 @@ Art is generated: edit `tools/make_art.py` and run `python3 tools/make_art.py` t
 | D-pad | Turn (no 180° reversal). The Gardener never stops. |
 | A | Jump: skips the next cell entered, lands in the one after (stuns an angry oppie you pass over) |
 | B | Drop the whole trail: saved on the star row, angry anywhere else |
-| Start | Start / return to title |
+| Start / A | Menu select, start; B leaves the high-score screen |
 
 ## What is implemented (v1 playable core)
 
@@ -60,17 +60,9 @@ Art is generated: edit `tools/make_art.py` and run `python3 tools/make_art.py` t
   chain scoring with multiplier, mushroom kills need blue/gold, gold adds a permanent friendly oppie
 - Palette set change every 50 saved, win at 200, game over on any collision, HUD, sound effects
 
-## Backlog (v2)
+## Backlog
 
-- High-score table + stats (biggest drop-off, most cleared at once/total) in battery SRAM
-- Music: hUGETracker arrangements of the gameplay / clear / ending tracks (reference OGGs extracted
-  to `reference/audio/`, not committed)
-- Ending cutscene with Cloverana dialogue and credits; "READY" and score pop-ups; witch animations
-- Angry oppie hop animation as a sprite; appear/stun animations with more frames
-- Tighter, per-object jump timing windows (currently: press anywhere in the cell before the obstacle)
-- Tuning against the original: cells/second, spawn intervals, star-row relocation rule, friendly count
-- Easter eggs ("I LOVE JESCA!", running in circles), OVER-GROW cheat, tutorial screen
-- Remove the `dbg[]` / `frame_count` diagnostics once tuning is done
+See the "Remaining features" list in `CLAUDE.md`.
 
 ## Layout
 

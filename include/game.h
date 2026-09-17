@@ -97,5 +97,6 @@ void hud_number(uint8_t x, uint8_t y, uint32_t v, uint8_t digits);
 void hud_draw_all(void);
 /* palettes.c */
 void palettes_apply(uint8_t set);
+void palettes_title(void);
 
 #endif

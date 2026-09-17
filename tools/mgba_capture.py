@@ -29,6 +29,7 @@ def shot(tag, w):
     im = Image.frombytes('RGB', (g.width, g.height), img.data, 'raw', 'BGRX')
     im.save(os.path.join(out, tag + '.png')); print('saved', tag, im.size)
 def key(name):
+    w.set_input_focus(X.RevertToParent, X.CurrentTime); d.sync(); time.sleep(0.1)
     kc = d.keysym_to_keycode(XK.string_to_keysym(name))
     xtest.fake_input(d, X.KeyPress, kc); d.sync(); time.sleep(0.08)
     xtest.fake_input(d, X.KeyRelease, kc); d.sync()

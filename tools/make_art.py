@@ -25,132 +25,143 @@ def hflip(rows): return [r[::-1] for r in rows]
 # Gardener: 1 = dark hair/outline, 2 = purple dress, 3 = white/skin
 GARDENER = {
 'down0': """
+........
+........
 ..1111..
 .111111.
 11111111
 11333311
-11313311
+13133131
+13333331
 .133331.
-..3333..
 .222222.
-12222221
-12222221
-.222222.
+32222223
 .222222.
 ..2222..
 ..3..3..
-..1..1..
 .11..11.
+........
 """,
 'down1': """
+........
+........
 ..1111..
 .111111.
 11111111
 11333311
-11313311
+13133131
+13333331
 .133331.
-..3333..
 .222222.
-12222221
-12222221
-.222222.
+32222223
 .222222.
 ..2222..
-..3..3..
-..11....
-.111.11.
+.3....3.
+11....11
+........
 """,
 'up0': """
+........
+........
 ..1111..
 .111111.
 11111111
 11111111
 11111111
+11111111
 .111111.
-..3333..
 .222222.
-12222221
-12222221
-.222222.
+32222223
 .222222.
 ..2222..
 ..3..3..
-..1..1..
 .11..11.
+........
 """,
 'up1': """
+........
+........
 ..1111..
 .111111.
 11111111
 11111111
 11111111
+11111111
 .111111.
-..3333..
 .222222.
-12222221
-12222221
-.222222.
+32222223
 .222222.
 ..2222..
-..3..3..
-....11..
-.11.111.
+.3....3.
+11....11
+........
 """,
 'left0': """
+........
+........
 ..1111..
 .111111.
 11111111
-11113311
-11111311
-.111331.
-..3333..
+11331111
+13131111
+13331111
+.133111.
 .222222.
-.222222.
-.222222.
-.222222.
+32222221
 .222222.
 ..2222..
 ..3.3...
-..1.1...
 .11.11..
+........
 """,
 'left1': """
+........
+........
 ..1111..
 .111111.
 11111111
-11113311
-11111311
-.111331.
-..3333..
+11331111
+13131111
+13331111
+.133111.
 .222222.
-.222222.
-.222222.
-.222222.
+32222221
 .222222.
 ..2222..
-..3.3...
-.1...1..
+.3...3..
 11..11..
+........
 """,
 'spin': """
+........
+........
 ..1111..
 .111111.
 11111111
 11111111
 11111111
+11111111
 .111111.
-..3333..
 .222222.
 22222222
 22222222
-22222222
 .222222.
-..2222..
 ..3..3..
-..1..1..
 .11..11.
+........
 """,
 }
+# Oppie as a sprite (title screen hoppers / menu cursor). OBJ palette 6: 1 = body colour, 2 = white, 3 = black
+OPPIE_SPR = """
+..1111..
+.111111.
+11111111
+12211221
+12311231
+11111111
+.111111.
+........
+"""
 # Flask (bottom 8 rows of an 8x16 OBJ; top is blank): 1 = dark, 2 = colour, 3 = white
 FLASK = """
 ...33...
@@ -186,6 +197,7 @@ add_sprite('SPR_RIGHT0', hflip(rows(GARDENER['left0'])))
 add_sprite('SPR_RIGHT1', hflip(rows(GARDENER['left1'])))
 add_sprite('SPR_FLASK', ['........']*8 + rows(FLASK))
 add_sprite('SPR_SHADOW', ['........']*8 + rows(SHADOW))
+add_sprite('SPR_OPPIE', ['........']*8 + rows(OPPIE_SPR))
 
 # ------------------------------------------------------------------ BG tiles
 bg = []  # (name, 8 rows)
@@ -413,173 +425,138 @@ T('T_BLACK', """
 00000000
 00000000
 """)
-# --- decoration, palette P6: 0 = black, 1 = dark green, 2 = purple, 3 = light blue
+# --- decoration, palette P6: 0 = ground (dark green), 1 = black, 2 = purple, 3 = light blue
+def block(name, art, w):
+    """split a w*8 x h*8 pixel block (strings of digits) into tiles named name0.. row-major"""
+    r = rows(art); h = len(r) // 8
+    for ty in range(h):
+        for tx in range(w):
+            T('%s%d' % (name, ty * w + tx), '\n'.join(r[ty*8+k][tx*8:tx*8+8] for k in range(8)))
 T('T_GRASS', """
-11111111
-11111111
-11111111
-11111111
-11111111
-11111111
-11111111
-11111111
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
 """)
-TREE = [
-"""
-..222222
-.2222222
-22222222
-22222222
-22222222
-22233222
-22232222
-22233222
-""","""
-222222..
-2222222.
-22222222
-22222222
-22222222
-22332222
-22322222
-22332222
-""","""
-22222222
-22222222
-.2222222
-..222222
-...22222
-1111.222
-1111..22
+block('T_TREE', """
+0000001111000000
+0000112222110000
+0001222222221000
+0012222222222100
+0122222222222210
+0122232222322210
+1222233222332221
+1222222222222221
+1222222222222221
+1222221111222221
+0122222222222210
+0122222222222210
+0012222222222100
+0001122222211000
+0000011211100000
+0000000110000000
+""", 2)
+# sleeping cat, 24x16, light blue with black outline and purple ears/nose
+block('T_CAT', """
+000000000000000000000000
+000000000000000000000000
+000011000011000000000000
+000131100131100000000000
+001333331333310000000000
+001333333333311111000000
+001313333313333333100000
+001333333333333333310000
+001332333333333333310000
+000133333333333333310000
+000013333333333333310000
+000001333333333333310000
+000000133333333333100000
+000000013333333331000000
+000000001111111110000000
+000000000000000000000000
+""", 3)
+# Cloverana, 16x24: purple hat with light blue band, light blue face, purple dress
+block('T_WITCH', """
+0000000010000000
+0000000122000000
+0000001222100000
+0000012222210000
+0000122222221000
+0001222222222100
+0012222222222210
+0133333333333331
+1222222222222221
+0113333333331100
+0001333333310000
+0001313333130000
+0001333333310000
+0000133333100000
+0000013331000000
+0000122222100000
+0001222222210000
+0012222222221000
+0012222222221000
+0122222222222100
+0122222222222100
+0001110000111000
+0001110000111000
+0000000000000000
+""", 2)
+# --- title screen: palette P1 (black, green, light green, white) vines & flowers; P0 (black, yellow, olive, white) big letters
+T('T_VINE_H', """
+........
+...2....
+..212...
 11111111
-""","""
-22222222
-22222222
-2222222.
-222222..
-22222...
-222.1111
-22..1111
+....2.1.
+.....21.
+........
+........
+""")
+T('T_VINE_H2', """
+........
+.....2..
+....212.
 11111111
-"""]
-for i, t in enumerate(TREE): T('T_TREE%d' % i, t)
-# Cat (HUD palette P7: 0 dark grey,1 light grey,2 white,3 pink) drawn as a pink cat, 3x2 tiles
-CAT = [
-"""
-........
-.3....3.
-.33..33.
-.333333.
-.323323.
-.333333.
-.333333.
-..3333..
-""","""
+..2.1...
+.21.....
 ........
 ........
-........
-33333333
-33333333
-33333333
-33333333
-33333333
-""","""
-........
-........
-....33..
-...333..
-..3333..
-33333333
-33333333
-33333333
-""","""
-..3333..
-.333333.
-.333333.
-.333333.
-.333333.
-..3333..
-........
-........
-""","""
-33333333
-33333333
-33333333
-33333333
-33333333
-.333333.
-........
-........
-""","""
-33333333
-33333333
-33333333
-33333333
-33333333
-.333333.
-........
-........
-"""]
-for i, t in enumerate(CAT): T('T_CAT%d' % i, t)
-# Witch (P6: 0 black, 1 dark green, 2 purple, 3 light blue) 2x3 tiles
-WITCH = [
-"""
-......3.
-.....33.
-....333.
-...3333.
-..33333.
-.333333.
-33333333
-...33...
-""","""
-........
-........
-........
-........
-........
-........
-33......
-........
-""","""
-..3333..
-.333333.
-.303303.
-.333333.
-..3333..
-.323323.
-.323323.
-32222223
-""","""
-........
-........
-........
+""")
+T('T_VINE_V', """
+...1....
+..21....
+...12...
+...1....
+..21....
+...1....
+...12...
+...1....
+""")
+T('T_FLOWER', """
 ........
 ...3....
-...3....
-...3....
-...3....
-""","""
-32222223
-.222222.
-.222222.
-.222222.
-..2222..
-..3..3..
-..3..3..
-.33..33.
-""","""
-...3....
-...3....
-...3....
+..333...
+.33233..
+..333...
 ...3....
 ........
 ........
+""")
+T('T_VINE_CORNER', """
 ........
 ........
-"""]
-for i, t in enumerate(WITCH): T('T_WITCH%d' % i, t)
-
+........
+...11111
+..1.....
+..1.....
+..1.....
+..1.....
+""")
 # --- font: 1 = white (index 1 in HUD palette is light grey; use index 2 for white)
 FONT = {
 '0': ["01110","10001","10011","10101","11001","10001","01110"],
@@ -625,13 +602,29 @@ FONT = {
 ',': ["00000","00000","00000","00000","00000","01100","00100"],
 'x': ["00000","00000","10001","01010","00100","01010","10001"],
 ' ': ["00000"]*7,
+'@': ["01110","10001","10111","10101","10111","10001","01110"],
 }
-FONT_ORDER = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-!.',x "
+FONT_ORDER = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-!.',x @"
 font_first = len(bg)
 for ch in FONT_ORDER:
     g = FONT[ch]
     r = ['.' + ''.join('2' if b == '1' else '.' for b in row) + '..' for row in g] + ['........']
     bg.append(('T_FONT_' + str(ord(ch)), r))
+
+# --- big title letters: 5x7 glyph scaled 2x (10x14) at (3,1) with a 1px olive drop shadow; 2x2 tiles per letter
+BIG = "MAGICRDEN"
+big_first = len(bg)
+for ch in BIG:
+    g = FONT[ch]; px = [['.'] * 16 for _ in range(16)]
+    for dy, dx, col in ((1, 1, '2'), (0, 0, '1')):
+        for gy in range(7):
+            for gx in range(5):
+                if g[gy][gx] == '1':
+                    for yy in range(2):
+                        for xx in range(2):
+                            px[1 + gy*2 + yy + dy][3 + gx*2 + xx + dx] = col
+    art = '\n'.join(''.join(r) for r in px)
+    block('T_BIG_' + ch, art, 2)
 
 # ------------------------------------------------------------------ indices
 SPR_BASE = 0                              # OBJ tiles 0..(2*len-1)
@@ -665,7 +658,7 @@ def tree(x, y):
 tree(0, 3); tree(2, 4); tree(0, 12); tree(2, 13)
 tree(16, 3); tree(18, 4); tree(16, 12); tree(18, 13)
 # cat at left (cols 0-2, rows 8-9); bubble dots drawn at runtime on row 7 cols 0-4? (we use bottom HUD instead)
-for i in range(3): put(i, 8, 'T_CAT%d' % i, P_HUD); put(i, 9, 'T_CAT%d' % (i+3), P_HUD)
+for i in range(3): put(i, 8, 'T_CAT%d' % i, P_DECO); put(i, 9, 'T_CAT%d' % (i+3), P_DECO)
 # witch at right (cols 17-18, rows 7-9)
 for i in range(3): put(17, 7+i, 'T_WITCH%d' % (2*i), P_DECO); put(18, 7+i, 'T_WITCH%d' % (2*i+1), P_DECO)
 # playfield cols 4-15 rows 3-14: floor checker (palettes 0/1), overwritten at runtime
@@ -680,6 +673,31 @@ def text(x, y, s):
 text(1, 15, 'SAVED'); text(12, 15, 'SCORE')
 for i in range(5): put(7+i, 17, 'T_DOT_OFF', P_HUD)
 
+# ------------------------------------------------------------------ title map (20x18)
+ttmap = [[names['T_BLACK']] * W for _ in range(H)]
+tamap = [[7] * W for _ in range(H)]
+def tput(x, y, name, pal): ttmap[y][x] = names[name]; tamap[y][x] = pal
+# vine frame: top row 1, bottom row 8, sides cols 1 and 18 rows 2-7
+for x in range(2, 18):
+    tput(x, 1, 'T_VINE_H' if x % 2 == 0 else 'T_VINE_H2', 1)
+    tput(x, 8, 'T_VINE_H2' if x % 2 == 0 else 'T_VINE_H', 1)
+for y in range(2, 8):
+    tput(1, y, 'T_VINE_V', 1); tput(18, y, 'T_VINE_V', 1)
+for x in (3, 8, 13, 16): tput(x, 1, 'T_FLOWER', 1)
+for x in (2, 6, 11, 15): tput(x, 8, 'T_FLOWER', 1)
+tput(1, 4, 'T_FLOWER', 1); tput(18, 6, 'T_FLOWER', 1)
+def big_text(x, y, word):
+    for i, ch in enumerate(word):
+        tput(x + 2*i, y, 'T_BIG_%s0' % ch, 0); tput(x + 2*i + 1, y, 'T_BIG_%s1' % ch, 0)
+        tput(x + 2*i, y + 1, 'T_BIG_%s2' % ch, 0); tput(x + 2*i + 1, y + 1, 'T_BIG_%s3' % ch, 0)
+big_text(5, 2, 'MAGIC')
+big_text(4, 5, 'GARDEN')
+def ttext(x, y, st):
+    for i, ch in enumerate(st): tput(x + i, y, 'T_FONT_' + str(ord(ch)), 7)
+ttext(6, 11, 'GAME START')
+ttext(6, 12, 'HIGH SCORES')
+ttext(2, 16, '@1984 LX SYSTEMS')
+
 # ------------------------------------------------------------------ emit
 os.makedirs(os.path.join(ROOT, 'include'), exist_ok=True)
 h = ['// Generated by tools/make_art.py - do not edit', '#ifndef GFX_DATA_H', '#define GFX_DATA_H', '#include <stdint.h>', '']
@@ -689,9 +707,11 @@ h.append(f'#define BG_BASE {BG_BASE}')
 for n, v in names.items(): h.append(f'#define {n} {v}')
 h.append(f'#define BG_TILE_COUNT {len(bg)}')
 h.append(f'#define FONT_FIRST {BG_BASE + font_first}')
+h.append(f'#define BIG_FIRST {BG_BASE + big_first}')
 h.append('#define FONT_ORDER "' + FONT_ORDER.replace('\\', '\\\\').replace('"', '\\"') + '"')
 h += ['', 'extern const uint8_t spr_tiles[];', 'extern const uint8_t bg_tiles[];',
-      'extern const uint8_t frame_map[20*18];', 'extern const uint8_t frame_attr[20*18];', '', '#endif']
+      'extern const uint8_t frame_map[20*18];', 'extern const uint8_t frame_attr[20*18];',
+      'extern const uint8_t title_map[20*18];', 'extern const uint8_t title_attr[20*18];', '', '#endif']
 open(os.path.join(ROOT, 'include', 'gfx_data.h'), 'w').write('\n'.join(h) + '\n')
 
 def carr(name, data):
@@ -707,6 +727,8 @@ for n, r in bg: bgd += tile2bpp(r)
 c = ['// Generated by tools/make_art.py - do not edit', '#include <stdint.h>', '#include "gfx_data.h"', '',
      carr('spr_tiles', spr), '', carr('bg_tiles', bgd), '',
      carr('frame_map', [t for row in tmap for t in row]), '',
-     carr('frame_attr', [a for row in amap for a in row])]
+     carr('frame_attr', [a for row in amap for a in row]), '',
+     carr('title_map', [t for row in ttmap for t in row]), '',
+     carr('title_attr', [a for row in tamap for a in row])]
 open(os.path.join(ROOT, 'src', 'gfx_data.c'), 'w').write('\n'.join(c) + '\n')
 print(f'sprite tiles: {2*len(sprite_tiles)}  bg tiles: {len(bg)}  BG_BASE={BG_BASE}  total={BG_BASE+len(bg)}')

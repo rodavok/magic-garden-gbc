@@ -25,9 +25,25 @@ static const uint16_t obj_pal[8 * 4] = {
     0, C(0,106,180), C(39,186,219), WHITE,   /* 3 blue flask */
     0, C(254,112,0), C(232,234,74), WHITE,   /* 4 gold flask */
     0, C(20,20,40),  C(52,0,88),    WHITE,   /* 5 shadow */
-    0, WHITE, WHITE, WHITE,
+    0, RED, WHITE, BLACK,                    /* 6 oppie sprite (title) */
     0, WHITE, WHITE, WHITE,
 };
+
+/* title screen: 0 big letters (yellow + olive shadow), 1 vines, 7 menu text */
+static const uint16_t title_pal[8 * 4] = {
+    BLACK, C(232,234,74), C(163,163,36), WHITE,
+    BLACK, C(99,179,29),  C(164,240,34), WHITE,
+    BLACK, WHITE, WHITE, WHITE,
+    BLACK, WHITE, WHITE, WHITE,
+    BLACK, WHITE, WHITE, WHITE,
+    BLACK, WHITE, WHITE, WHITE,
+    BLACK, WHITE, WHITE, WHITE,
+    BLACK, C(200,200,200), WHITE, RED,
+};
+void palettes_title(void) {
+    set_bkg_palette(0, 8, title_pal);
+    set_sprite_palette(0, 8, obj_pal);
+}
 
 void palettes_apply(uint8_t set) {
     const uint16_t *s = set_colors[set & 3];
@@ -39,8 +55,8 @@ void palettes_apply(uint8_t set) {
     bg_pal[12] = fb;  bg_pal[13] = WHITE; bg_pal[14] = BLACK; bg_pal[15] = BLUE;
     bg_pal[16] = star; bg_pal[17] = WHITE; bg_pal[18] = BLACK; bg_pal[19] = RED;
     bg_pal[20] = star; bg_pal[21] = WHITE; bg_pal[22] = BLACK; bg_pal[23] = BLUE;
-    /* 6: decoration */
-    bg_pal[24] = BLACK; bg_pal[25] = s[5]; bg_pal[26] = s[3]; bg_pal[27] = s[4];
+    /* 6: decoration: ground, black outline, tree/witch purple, light blue */
+    bg_pal[24] = s[5]; bg_pal[25] = BLACK; bg_pal[26] = s[3]; bg_pal[27] = s[4];
     /* 7: HUD */
     bg_pal[28] = C(64,64,64); bg_pal[29] = C(200,200,200); bg_pal[30] = WHITE; bg_pal[31] = RED;
     set_bkg_palette(0, 8, bg_pal);
