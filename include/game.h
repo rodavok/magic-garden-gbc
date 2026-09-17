@@ -91,6 +91,8 @@ void render_prepare(void);
 void render_flush(void);
 void render_grid_full(void);
 void hud_text(uint8_t x, uint8_t y, const char *s);
+void map_text(uint8_t *buf, uint8_t x, uint8_t y, const char *s);
+void vram_draw_map(const uint8_t *map, const uint8_t *attr);
 void hud_number(uint8_t x, uint8_t y, uint32_t v, uint8_t digits);
 void hud_draw_all(void);
 /* palettes.c */

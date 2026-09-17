@@ -10,42 +10,30 @@ enum { ST_TITLE, ST_PLAY, ST_OVER };
 
 static uint8_t joy_prev;
 
-static void clear_screen(void) {
-    uint8_t row[20];
-    uint8_t y;
-    memset(row, T_BLACK, 20);
-    for (y = 0; y < 18; y++) set_bkg_tiles(0, y, 20, 1, row);
-    VBK_REG = 1;
-    memset(row, 7, 20);
-    for (y = 0; y < 18; y++) set_bkg_tiles(0, y, 20, 1, row);
-    VBK_REG = 0;
-}
+static uint8_t screen_buf[20 * 18];
 
 static void show_title(void) {
     uint8_t i;
     HIDE_SPRITES;
-    DISPLAY_OFF;
-    clear_screen();
-    hud_text(4, 4, "MAGIC GARDEN");
-    hud_text(3, 7, "STOP THE WITCH");
-    hud_text(2, 8, "CLOVERANA FROM");
-    hud_text(2, 9, "SABOTAGING YOUR");
-    hud_text(6, 10, "GARDEN!");
-    hud_text(5, 13, "PRESS START");
-    hud_text(3, 16, "GBC PORT 2026");
     for (i = 0; i < 40; i++) move_sprite(i, 0, 0);
-    DISPLAY_ON;
+    memset(screen_buf, T_BLACK, sizeof screen_buf);
+    map_text(screen_buf, 4, 4, "MAGIC GARDEN");
+    map_text(screen_buf, 3, 7, "STOP THE WITCH");
+    map_text(screen_buf, 2, 8, "CLOVERANA FROM");
+    map_text(screen_buf, 2, 9, "SABOTAGING YOUR");
+    map_text(screen_buf, 6, 10, "GARDEN!");
+    map_text(screen_buf, 5, 13, "PRESS START");
+    map_text(screen_buf, 3, 16, "GBC PORT 2026");
+    vram_draw_map(screen_buf, 0);
 }
 
 static void start_game(void) {
     initrand(DIV_REG | ((uint16_t)DIV_REG << 8) ^ 0x5A17);
     game_init();
-    DISPLAY_OFF;
     render_init();
     render_grid_full();
     hud_draw_all();
     SHOW_SPRITES;
-    DISPLAY_ON;
 }
 
 void main(void) {
@@ -63,6 +51,7 @@ void main(void) {
     VBK_REG = 1; fill_bkg_rect(0, 0, 32, 32, 7); VBK_REG = 0;
     { uint8_t i; for (i = 0; i < 40; i++) { set_sprite_tile(i, 0); set_sprite_prop(i, 0); move_sprite(i, 0, 0); } }
     palettes_apply(0);
+    LCDC_REG = LCDCF_ON | LCDCF_BG8000 | LCDCF_BGON;   /* LCD on; from here on VRAM is only touched in VBlank */
     show_title();
     joy_prev = 0;
     while (1) {

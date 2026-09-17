@@ -23,6 +23,26 @@ static uint8_t font_tile(char ch) {
     }
 }
 
+/* write text into a 20-wide RAM screen buffer (no VRAM access) */
+void map_text(uint8_t *buf, uint8_t x, uint8_t y, const char *s) {
+    uint8_t *p = buf + y * 20 + x;
+    while (*s) *p++ = font_tile(*s++);
+}
+
+/* Copy a full 20x18 screen (tiles + attributes; attr == NULL means palette 7 everywhere) to VRAM,
+   two rows per VBlank, with the LCD left on. Safe on hardware and on emulators that mishandle LCD-off writes. */
+void vram_draw_map(const uint8_t *map, const uint8_t *attr) {
+    uint8_t y, a7[40];
+    memset(a7, 7, 40);
+    for (y = 0; y < 18; y += 2) {
+        wait_vbl_done();
+        set_bkg_tiles(0, y, 20, 2, map + y * 20);
+        VBK_REG = 1;
+        set_bkg_tiles(0, y, 20, 2, attr ? attr + y * 20 : a7);
+        VBK_REG = 0;
+    }
+}
+
 void hud_text(uint8_t x, uint8_t y, const char *s) {
     uint8_t buf[20], n = 0;
     while (*s && n < 20) buf[n++] = font_tile(*s++);
@@ -41,15 +61,9 @@ void hud_number(uint8_t x, uint8_t y, uint32_t v, uint8_t digits) {
 
 void render_init(void) {
     uint8_t i;
-    LCDC_REG |= LCDCF_BG8000;
-    set_sprite_data(0, SPR_TILE_COUNT, spr_tiles);
-    set_sprite_data(BG_BASE, BG_TILE_COUNT, bg_tiles);   /* BG tiles share the 0x8000 space */
-    set_bkg_tiles(0, 0, 20, 18, frame_map);
-    VBK_REG = 1;
-    set_bkg_tiles(0, 0, 20, 18, frame_attr);
-    VBK_REG = 0;
     SPRITES_8x16;
     for (i = 0; i < 40; i++) { set_sprite_tile(i, 0); move_sprite(i, 0, 0); }
+    vram_draw_map(frame_map, frame_attr);
     set_sprite_prop(0, 0);
     set_sprite_tile(1, SPR_SHADOW); set_sprite_prop(1, 5);
     cur_set = 0xFF;
@@ -120,10 +134,10 @@ static void flush_rows(void) {
     n_rows = 0;
 }
 
-/* full redraw with the LCD off (used when a game starts) */
+/* full redraw in VBlank chunks (used when a game starts) */
 void render_grid_full(void) {
     G.dirty_rows = 0xFFF;
-    while (G.dirty_rows) { prepare_grid(); flush_rows(); }
+    while (G.dirty_rows) { prepare_grid(); wait_vbl_done(); flush_rows(); }
 }
 
 static void draw_sprites(void) {
@@ -178,7 +192,7 @@ static void hud_flush(void) {
     set_bkg_tiles(9, 1, 2, 1, hud_timer);
     set_bkg_tiles(13, 17, 2, 1, hud_mult);
 }
-void hud_draw_all(void) { hud_prepare(); hud_flush(); }
+void hud_draw_all(void) { hud_prepare(); wait_vbl_done(); hud_flush(); }
 
 /* Phase 1 (any time in the frame): compute everything, touch only shadow OAM and RAM buffers. */
 void render_prepare(void) {
