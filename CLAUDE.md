@@ -63,10 +63,9 @@ SAMEBOY_BOOT=~/.local/opt/SameBoy-1.0.3/build/bin/BootROMs/cgb_boot.bin ./tools/
 
 ## Remaining features (backlog)
 
-1. High scores + stats (biggest drop-off, most cleared at once/total) in battery SRAM; the HIGH SCORES
-   screen is a zero-filled stub; name entry optional
-2. Music: hUGETracker arrangements of gameplay / clear / ending (reference OGGs in `reference/audio/`)
-3. Ending cutscene at 200 saved with the Cloverana dialogue, then credits
+1. Music: hUGETracker arrangements of gameplay / clear / ending (reference OGGs in `reference/audio/`)
+2. Sound effects closer to the originals (sfx_special02 on flask, the 150/100/50 ticks, witch cackle)
+3. Ending polish: the witch walking in beside the Gardener, a happy sprite, the original's credit roll timing
 4. Palette fade on transitions; "PUSH RIGHT OR DOWN" hint while waiting at the start
 5. Witch animation when she spawns mushrooms; richer appear/stun frames; flash hop sprites while powered
 6. Cascading drop-off conversion (10-frame stagger with a clear effect) and score pop-ups (o27_Points)

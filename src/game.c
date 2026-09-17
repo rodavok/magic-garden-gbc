@@ -219,7 +219,7 @@ static void do_drop(void) {
     }
     G.palette_set = (uint8_t)(G.saved / 50);
     if (G.palette_set > 3) G.palette_set = 3;
-    if (G.saved >= WIN_SAVED) { G.state = PS_WIN; G.state_timer = 120; sfx_win(); return; }
+    if (G.saved >= WIN_SAVED) { G.state = PS_WIN; G.state_timer = 0; sfx_win(); return; }
     G.pad_flash = PAD_FLASH;   /* the pad flashes and a new one appears when it ends */
     G.dirty_rows = 0xFFF;
 }

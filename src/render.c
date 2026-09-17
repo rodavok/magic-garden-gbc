@@ -46,6 +46,7 @@ void vram_draw_map(const uint8_t *map, const uint8_t *attr) {
 void hud_text(uint8_t x, uint8_t y, const char *s) {
     uint8_t buf[20], n = 0;
     while (*s && n < 20) buf[n++] = font_tile(*s++);
+    if (n == 0) return;   /* a zero width would underflow to 256 tiles in set_bkg_tiles */
     set_bkg_tiles(x, y, n, 1, buf);
     VBK_REG = 1;
     memset(buf, 7, n);

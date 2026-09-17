@@ -1,3 +1,4 @@
+#pragma bank 1
 #include <gb/gb.h>
 #include <gb/hardware.h>
 #include "sfx.h"

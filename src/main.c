@@ -7,7 +7,7 @@
 #include "sfx.h"
 #include "save.h"
 
-enum { ST_TITLE, ST_SCORES, ST_PLAY, ST_OVER };
+enum { ST_TITLE, ST_SCORES, ST_PLAY, ST_OVER, ST_ENDING };
 
 static uint8_t joy_prev;
 static uint8_t screen_buf[20 * 18];
@@ -83,6 +83,71 @@ static void show_scores(void) {
     vram_draw_map(screen_buf, 0);
 }
 
+/* ---- ending: the garden fills with oppies, Cloverana comes round, credits ---- */
+static const char *ending_lines[4][3] = {
+    { "PLEASE DON'T BE", "JEALOUS OF ME.", "" },
+    { "WE NEED TO HELP EACH", "OTHER, NOT TEAR EACH", "OTHER DOWN." },
+    { "I CAN TEACH YOU HOW", "TO GROW A WONDERFUL", "GARDEN OF YOUR OWN!" },
+    { "CLOVERANA: YOU'RE", "RIGHT... THANK YOU!", "" },
+};
+static const char *credits_lines[] = {
+    "DIRECTOR", "BENEDIKT CHUN", "", "PROGRAM", "GERRY SMOLSKI", "", "GRAPHICS", "BENEDIKT CHUN", "",
+    "SOUND", "THORSON PETTER", "", "LX-II DESIGN", "MEESHA DANRY", "", "SPECIAL THANKS", "JESCA ZARIAN",
+    "LANCE THE CAT", "MR. BIG'S BURGERS", "AND YOU, THE PLAYER!", "", "PRESENTED BY", "LX SYSTEMS", "", "THE END",
+};
+#define CREDITS_N (sizeof(credits_lines) / sizeof(credits_lines[0]))
+static uint8_t end_phase, end_cell, end_page;
+static uint16_t end_timer;
+
+static void ending_panel(const char *a, const char *b, const char *c) {
+    hud_text(0, 15, "                    ");
+    hud_text(0, 16, "                    ");
+    hud_text(0, 17, "                    ");
+    hud_text(0, 15, a); hud_text(0, 16, b); hud_text(0, 17, c);
+}
+static void ending_begin(void) {
+    end_phase = 0; end_cell = 0; end_timer = 0; end_page = 0;
+    G.state = PS_WIN; G.drop_anim = 0; G.turn_timer = 0; G.z = 0;
+}
+/* runs in the logic phase; VRAM text goes through hud_text after wait_vbl_done in the flush phase */
+static uint8_t end_text_pending;
+static void ending_update(uint8_t pressed) {
+    switch (end_phase) {
+    case 0:   /* fill the arena with friendly oppies, one cell every 5 frames */
+        if (++end_timer >= 5) {
+            end_timer = 0;
+            if (G.grid[end_cell] != C_FRIEND) { G.grid[end_cell] = C_FRIEND; G.dirty_rows |= (uint16_t)1 << (end_cell / GW); }
+            if (++end_cell == NCELLS) { end_phase = 1; end_timer = 0; end_text_pending = 1; }
+        }
+        break;
+    case 1:   /* dialogue pages: A/Start or 240 frames each */
+        if (++end_timer >= 240 || (pressed & (J_A | J_START))) {
+            end_timer = 0;
+            if (++end_page >= 4) { end_phase = 2; end_page = 0; }
+            end_text_pending = 1;
+        }
+        break;
+    case 2:   /* credits: three lines at a time, 150 frames per page */
+        if (++end_timer >= 150 || (pressed & (J_A | J_START))) {
+            end_timer = 0; end_page += 3;
+            if (end_page >= CREDITS_N) { end_phase = 3; end_timer = 0; }
+            end_text_pending = 1;
+        }
+        break;
+    default:  /* done: wait for Start */
+        break;
+    }
+}
+static void ending_flush(void) {
+    if (!end_text_pending) return;
+    end_text_pending = 0;
+    if (end_phase == 1) ending_panel(ending_lines[end_page][0], ending_lines[end_page][1], ending_lines[end_page][2]);
+    else if (end_phase == 2) ending_panel(end_page < CREDITS_N ? credits_lines[end_page] : "",
+                                          end_page + 1 < CREDITS_N ? credits_lines[end_page + 1] : "",
+                                          end_page + 2 < CREDITS_N ? credits_lines[end_page + 2] : "");
+    else if (end_phase == 3) ending_panel("      YOU WIN!      ", "", "     PRESS START    ");
+}
+
 static void start_game(void) {
     initrand(DIV_REG | ((uint16_t)DIV_REG << 8) ^ 0x5A17);
     game_init();
@@ -138,8 +203,14 @@ void main(void) {
             G.frame_count++;
             G.dbg[0] = LY_REG;
             game_update(joy, pressed);
+            if (G.state == PS_WIN) { save_insert(G.score, G.saved, G.best_drop, G.best_chain, G.total_kills); ending_begin(); state = ST_ENDING; }
             render_prepare();
             G.dbg[1] = LY_REG;
+            break;
+        case ST_ENDING:
+            G.frame_count++;
+            ending_update(pressed);
+            render_prepare();
             break;
         case ST_OVER:
             if (pressed & J_START) { show_title(); state = ST_TITLE; }
@@ -147,14 +218,19 @@ void main(void) {
         }
         /* phase 2: VRAM writes in VBlank */
         wait_vbl_done();
+        if (state == ST_ENDING) {
+            render_flush();
+            ending_flush();
+            if (end_phase == 3 && (pressed & J_START)) { show_title(); state = ST_TITLE; }
+        }
         if (state == ST_PLAY) {
             G.dbg[2] = LY_REG;
             render_flush();
             G.dbg[3] = LY_REG;
-            if ((G.state == PS_DEAD || G.state == PS_WIN) && G.state_timer == 0) {
+            if (G.state == PS_DEAD && G.state_timer == 0) {
                 uint8_t rank = save_insert(G.score, G.saved, G.best_drop, G.best_chain, G.total_kills);
-                hud_text(4, 8, G.state == PS_WIN ? "GARDEN SAVED" : "  GAME OVER ");
-                if (rank) { hud_text(4, 10, " HIGH SCORE ");  }
+                hud_text(4, 8, "  GAME OVER ");
+                if (rank) hud_text(4, 10, " HIGH SCORE ");
                 state = ST_OVER;
             }
         }

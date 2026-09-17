@@ -1,3 +1,4 @@
+#pragma bank 1
 #include <gb/gb.h>
 #include <string.h>
 #include "save.h"
