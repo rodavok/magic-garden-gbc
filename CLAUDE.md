@@ -2,7 +2,8 @@
 
 "What if it shipped on the Game Boy Color" port of *Magic Garden* (UFO 50 #5). C with GBDK-2020,
 CGB-only, MBC5 + 8 KiB battery SRAM, must run on real hardware (an MBC5 flash cart). Fan project;
-art is redrawn at GBC resolution, nothing from the original data ships in the ROM.
+art is redrawn at GBC resolution, nothing from the original data ships in the ROM. The rules follow the
+original exactly (see "Original rules"); when in doubt, read the original's code, don't guess.
 
 ## Commands
 
@@ -12,41 +13,62 @@ make run                  # open in mGBA (~/.local/opt/mgba.appimage)
 python3 tools/make_art.py # regenerate src/gfx_data.c + include/gfx_data.h after editing pixel art
 ~/.local/opt/pyboy-venv/bin/python tools/sim_test.py    # 22 rule checks (poke grid via RAM) - run after any rules change
 ~/.local/opt/pyboy-venv/bin/python tools/perf_test.py   # one update per frame + scanline timing
-~/.local/opt/pyboy-venv/bin/python tools/autopilot.py   # bot plays; screenshots in build/auto
-SAMEBOY_BOOT=~/.local/opt/SameBoy-1.0.3/build/bin/BootROMs/cgb_boot.bin ./tools/sameboy/dump build/magicgarden.gbc "200,5:start,200" build/sameboy/x   # accurate headless run + PPU dump
+~/.local/opt/pyboy-venv/bin/python tools/autopilot.py   # bot plays a minute; screenshots in build/auto
+SAMEBOY_BOOT=~/.local/opt/SameBoy-1.0.3/build/bin/BootROMs/cgb_boot.bin ./tools/sameboy/dump build/magicgarden.gbc "230,5:start,40,5:down,600" build/sameboy/x   # accurate headless run: PPM frames + PPU/palette/tilemap dump per step
+SAMEBOY_WAV=build/sameboy/out.wav SAMEBOY_BOOT=... ./tools/sameboy/dump ...                 # same, also records the audio
 ~/.local/opt/pyboy-venv/bin/python tools/mgba_capture.py build/magicgarden.gbc build/mgba "4,0.3:Return,3"   # drives mGBA on DISPLAY :0
 ```
 
+Regenerating music (only if the transcriber or reference audio changes):
+
+```bash
+( echo '#pragma bank 2'; echo '#include "hUGEDriver.h"'; echo '#include <stddef.h>'; echo ) > src/music_data.c
+for spec in "bgm27_gameplay song_gameplay --loop --rows 352" "bgm27_stingWin song_win" "bgm27_stingLose song_lose" "bgm27_end song_end"; do
+  set -- $spec; ~/.local/opt/pyboy-venv/bin/python tools/transcribe.py reference/audio/$1.ogg $2 /tmp/$2.c $3 $4 $5; cat /tmp/$2.c >> src/music_data.c; done
+~/.local/opt/pyboy-venv/bin/python tools/eval_transcription.py   # chroma score of the transcription vs the original
+```
+
+Never run the PyBoy tests while `make` is still writing the ROM: they read a half-written file and report garbage.
+
 ## Layout
 
-- `include/game.h` game state struct `game_t` (field order matters: `tools/gbmem.py` parses it) and all tuning constants
-- `src/game.c` rules; `src/render.c` BG rows/sprites/HUD; `src/main.c` main loop; `src/screens.c` title, scores, ending (bank 1); `src/save.c` SRAM
-- `src/palettes.c` 4 in-game palette sets + title set; `src/sfx.c` register-level sound effects
-- `tools/make_art.py` all pixel art as text + frame/title tile maps -> generated `src/gfx_data.c` (committed, ROM bank 1)
-- `tools/gml_dump.py` disassembles the original's GameMaker bytecode (reference/gml/, git-ignored)
-- `tools/transcribe.py` OGG -> hUGEDriver song C (row = 11 frames); `tools/eval_transcription.py` scores a
-  transcription; `src/music.c` plays songs (data + driver in ROM bank 2), `src/music_data.c` generated
-- `lib/hUGEDriver.o` hUGEDriver assembled with RGBDS 0.7.0 (`rgbasm -I. -DGBDK`, section renamed to
-  `ROMX, BANK[2]`), converted with rgb2sdas -b 2, then its `S b*hUGE_* Ref000002` records patched to
-  `Ref000000` (GBDK's linker rejects nonzero S_REF); `src/hugebank.s` defines those bank symbols as 2
-- `MAGIC_GARDEN_GBC_BRIEF.md` research on the original game; `reference/` extracted originals (git-ignored)
+- `include/game.h` game state struct `game_t` (field order matters: `tools/gbmem.py` parses it, and `pop_t` is 5 bytes) and all tuning constants
+- `src/game.c` rules; `src/render.c` BG rows/sprites/HUD/pop-ups; `src/main.c` main loop (bank 0)
+- `src/screens.c` title, high scores, game start, ending (bank 1); `src/save.c` SRAM; `src/palettes.c`; `src/sfx.c` register-level effects (all bank 1)
+- `src/music.c` song control (bank 0); `src/music_data.c` generated songs (bank 2); `src/hugebank.s` bank symbols for the driver
+- `lib/hUGEDriver.o` hUGEDriver in bank 2: RGBDS 0.7.0 `rgbasm -I. -DGBDK` on a copy whose "Sound Driver"
+  section is `ROMX, BANK[2]`, then `rgb2sdas.py -b 2`, then its `S b*hUGE_* Ref000002` records patched to
+  `Ref000000` (GBDK's linker rejects a nonzero S_REF). Sources: ~/.local/opt/hUGEDriver, ~/.local/opt/rgbds-v0.7.0
+- `tools/make_art.py` all pixel art as text + frame/title tile maps -> `src/gfx_data.c` (committed, bank 1)
+- `tools/gml_dump.py` disassembles the original's GameMaker bytecode into reference/gml/ (git-ignored)
+- `tools/extract_gm.py` pulls the original sprites/audio from the local UFO 50 install into reference/ (git-ignored)
+- `tools/transcribe.py` OGG -> hUGEDriver song C (row = 11 frames = an eighth note); `tools/eval_transcription.py` scorer
+- `tools/sameboy/dump.c` SameBoy-core harness (frames, PPU state, WAV); `tools/gbmem.py` RAM access for PyBoy tests
+- `MAGIC_GARDEN_GBC_BRIEF.md` research on the original game
 
 ## Hard rules (learned the hard way)
 
 - VRAM and palette writes only in VBlank (after `wait_vbl_done()`) or with the LCD off at boot. Screen
-  transitions use `vram_draw_map()` (2 rows per VBlank); the game flushes at most 4 dirty rows per frame.
+  transitions use `vram_draw_map()` (2 rows per VBlank); the game flushes at most 4 dirty rows per frame
+  by direct `memcpy` into the tile map (GBDK's `set_bkg_tiles` is several times slower and overran VBlank).
   Never switch the LCD off after boot: emulators such as John GBC drop LCD-off writes.
+- Never call `hud_text()` with an empty string: a zero width underflows to 256 tiles in `set_bkg_tiles`.
 - No per-frame full-grid scans. SDCC sm83 code costs 200-500 cycles per loop iteration; use the entity lists
-  (`angry_list`, `appear_list`, `flask_list`) and `DIRTY_ROW`.
+  (`angry_list`, `appear_list`, `flask_list`) and `DIRTY_ROW`. No 32-bit division on the frame path
+  (digits are made by repeated subtraction).
 - Avoid signed casts into inline helpers (SDCC 4.5 miscompiled `cidx((uint8_t)nx, (uint8_t)ny)`); use
   `neighbor()` with unsigned bounds checks.
-- Game logic runs from scanline 2 (`while (LY_REG != 2)`), so PyBoy tests read RAM at frame boundaries
-  and step by `frame_count`, not emulator ticks.
-- Palette budget: BG 0/1 friendly on floor A/B, 2/3 angry+mushroom, 4/5 star row, 6 decoration
+- Game logic runs from scanline 2 (or at once if a flush ran late), so PyBoy tests read RAM at frame
+  boundaries and step by `frame_count`, not emulator ticks. PyBoy's hook_register misses ~1 in 10 hits.
+- Banks: bank 1 is mapped by default (graphics, screens, palettes, sfx, save). Every hUGEDriver call
+  (`hUGE_init`, `hUGE_dosound`, `hUGE_mute_channel`) must be wrapped in `SWITCH_ROM(2)` / `SWITCH_ROM(1)`;
+  a call with bank 1 mapped executes tile data as code and corrupts RAM. Only bank-0 code may switch banks.
+- Sound: `music_update()` runs in VBlank; sfx.c mutes the driver's channel for the effect's length via
+  `music_sfx_hold()`. hUGE note 0 is C2 (65 Hz). The wave channel plays an octave low for a one-cycle
+  waveform, so bass waves hold two cycles.
+- Palette budget: BG 0/1 friendly on floor A/B, 2/3 angry+mushroom, 4/5 star pad, 6 decoration
   (ground, black, purple, light blue), 7 HUD. OBJ 0 player, 1-4 flasks, 5 shadow, 6 red oppie/pop-ups, 7 blue oppie.
-- Sound: `music_update()` runs in VBlank with bank 2 mapped; sfx.c mutes the driver's channel for the
-  effect's length via `music_sfx_hold()`. The wave channel plays an octave low for a one-cycle waveform,
-  so bass waves hold two cycles. hUGE note 0 is C2 (65 Hz).
+- Sprite slots: 0-1 player (8x24), 2 shadow, 3-8 hopping enemies, 9-14 flasks, 15-26 pop-ups (2 each).
 
 ## Original rules (read from UFO 50's GML bytecode with tools/gml_dump.py; keep the port on these)
 
@@ -61,23 +83,31 @@ SAMEBOY_BOOT=~/.local/opt/SameBoy-1.0.3/build/bin/BootROMs/cgb_boot.bin ./tools/
   during a flask; one spawns as it ends); growth takes 240 frames. Mushrooms grow the same way.
 - Star pads: column 1, column 10, row 1, row 10, or a 4x4 ring / blob at a random spot (no repeat of the
   last shape); life 960 frames. Expiring unused summons (rank+1) mushrooms and a new pad. A save flashes
-  the pad 40 frames, then a new pad appears. Drop (B): trail oppies on the pad are saved for
-  10 x trail position; the rest become enemies in place.
+  the pad 40 frames, then a new pad appears. Drop (B): every trail oppie is judged at once, then resolved
+  one per 10 frames: on the pad it is saved for 10 x trail position, otherwise it becomes an enemy in place.
 - Flasks: counter += saved; at >= 6 the level is min(3, counter-6) and the counter resets; the flask drops
   in 60 frames later and falls 90 units; it upgrades a level every 512 frames on the floor. Pickup: 480
   frames of power, +1 multiplier for green+, mushrooms killable with blue+, gold adds a permanent loose
   oppie. Kill score (10 + 10 x kills this flask) x multiplier. Ranks at 50/100/150 saved; win at 200.
 - Two loose oppies on the field, replaced immediately when collected.
+- Music: gameplay loop is 44 bars at 163.6 BPM (88 frames a bar); win sting, lose sting, ending theme.
+  Ending: the field fills with oppies one cell per 5 frames, four dialogue lines, credits.
+
+## Done
+
+Playable core on the original rules; title with menu, hoppers and high-score screen; battery-backed high
+scores and stats; ending with dialogue and credits; cascading drop-off with pop-ups; death bump; start
+hint; four auto-transcribed music tracks with sound effects; verified in SameBoy, mGBA and John GBC.
 
 ## Remaining features (backlog)
 
-1. Music quality: the four tracks are auto-transcribed (tools/transcribe.py) and approximate; hand-polish
-   melodies/harmony in src/music_data.c or re-export from hUGETracker
+1. Music quality: the four tracks are auto-transcribed and approximate (chroma score 0.32 vs the original
+   when rendered on the GB). Hand-polish melodies/harmony in src/music_data.c or re-export from hUGETracker
 2. Sound effects closer to the originals (sfx_special02 on flask, the 150/100/50 ticks, witch cackle)
 3. Ending polish: the witch walking in beside the Gardener, a happy sprite, the original's credit roll timing
-4. Palette fade on transitions; "PUSH RIGHT OR DOWN" hint while waiting at the start
+4. Palette fade on transitions
 5. Witch animation when she spawns mushrooms; richer appear/stun frames; flash hop sprites while powered
 6. Clear effect frames on the cascading drop-off (FollowClear animation)
 7. The original game-over flow (60-frame bump, then the UFO 50 frame's GAME OVER card)
 8. Easter eggs ("I LOVE JESCA!" after inactivity, running in circles) and the OVER-GROW cheat; tutorial
-9. Remove `dbg[]` / `frame_count` diagnostics once tuning is done
+9. Remove `dbg[]` / `frame_count` diagnostics once tuning is done (the tests read `frame_count`)
