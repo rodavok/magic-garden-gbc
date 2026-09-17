@@ -141,16 +141,25 @@ void render_grid_full(void) {
 }
 
 static void draw_sprites(void) {
-    uint8_t tile, sx, sy, i, n = 2, lift = 0;
-    int8_t off = (int8_t)((G.sub * 8) / CELL_FRAMES);
+    uint8_t tile, prop = 0, sx, sy, i, n = 2, lift = 0, dir = G.dir;
+    uint8_t off = (uint8_t)((G.sub * 8) / CELL_FRAMES);
+    uint8_t anim = (G.state == PS_PLAY) ? (uint8_t)((G.frame_count / 3) & 3) : 0;
     sx = ORG_X + G.px * 8; sy = ORG_Y + G.py * 8 - 8;
-    switch (G.dir) {
-    case D_UP: sy -= off; tile = G.anim ? SPR_UP1 : SPR_UP0; break;
-    case D_DOWN: sy += off; tile = G.anim ? SPR_DOWN1 : SPR_DOWN0; break;
-    case D_LEFT: sx -= off; tile = G.anim ? SPR_LEFT1 : SPR_LEFT0; break;
-    default: sx += off; tile = G.anim ? SPR_RIGHT1 : SPR_RIGHT0; break;
+    switch (dir) {
+    case D_UP: sy -= off; break;
+    case D_DOWN: sy += off; break;
+    case D_LEFT: sx -= off; break;
+    default: sx += off; break;
     }
-    if (G.state == PS_READY || G.drop_anim) tile = (G.drop_anim & 4) ? SPR_SPIN : SPR_DOWN0;
+    if (G.drop_anim) { dir = (G.drop_anim >> 2) & 3; anim = 0; }          /* spin: down, right, up, left */
+    else if (G.state == PS_READY) { dir = D_DOWN; anim = 0; }
+    switch (dir) {
+    case D_UP: tile = SPR_UP0; break;
+    case D_DOWN: tile = SPR_DOWN0; break;
+    case D_LEFT: tile = SPR_LEFT0; break;
+    default: tile = SPR_LEFT0; prop = S_FLIPX; break;
+    }
+    tile += anim * 2;
     if (G.jump) {
         /* parabolic lift, peak 10 px at mid-jump */
         uint8_t t = G.jump > JUMP_FRAMES / 2 ? JUMP_FRAMES - G.jump : G.jump; /* 0..12 */
@@ -158,7 +167,7 @@ static void draw_sprites(void) {
         move_sprite(1, sx + 8, sy + 16);
     } else move_sprite(1, 0, 0);
     if (G.state == PS_DEAD && (G.state_timer & 4)) { move_sprite(0, 0, 0); }
-    else { set_sprite_tile(0, tile); move_sprite(0, sx + 8, sy + 16 - lift); }
+    else { set_sprite_tile(0, tile); set_sprite_prop(0, prop); move_sprite(0, sx + 8, sy + 16 - lift); }
     /* flasks as sprites */
     for (i = 0; i < G.n_flask; i++, n++) {
         uint8_t c = G.flask_list[i];

@@ -12,8 +12,8 @@
 #define ORG_Y 24
 
 /* ---- tuning (all "unknown" values from the brief live here) ---- */
-#define CELL_FRAMES      12   /* frames to cross one cell (5 cells/s) */
-#define JUMP_FRAMES      24   /* airborne time: clears exactly one cell */
+#define CELL_FRAMES      8    /* frames to cross one cell: 1 px per frame, 7.5 cells/s */
+#define JUMP_FRAMES      16   /* airborne time (2 cells): clears exactly one cell */
 #define MAX_TRAIL        48
 #define MAX_ANGRY        64
 #define MAX_APPEAR       8

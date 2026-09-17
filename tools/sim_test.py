@@ -10,10 +10,10 @@ sys.path.insert(0, os.path.dirname(__file__))
 from gbmem import Mem
 C_EMPTY, C_FRIEND, C_TRAIL, C_ANGRY, C_MUSH, C_FLASK = range(6)
 PS_READY, PS_PLAY, PS_DEAD, PS_WIN = range(4)
-CELL = 12
 
 pb = PyBoy(rom, window="null", cgb=True); pb.set_emulation_speed(0)
 M = Mem(pb, rom.replace('.gbc', '.noi')); rd, wr = M.rd, M.wr
+CELL = M.defs['CELL_FRAMES']; JUMP = M.defs['JUMP_FRAMES']
 def cell(x, y): return y * 12 + x
 def raw_tick(n): pb.tick(n, True)
 def tick(n):
@@ -77,7 +77,7 @@ wr('grid', C_EMPTY, cell(4, 6)); wr('n_angry', 0); wr('dirty_rows', 0xFFF)
 flush(); tick(CELL - rd('sub'))
 check('T4 aligned', rd('sub') == 0 and (rd('px'), rd('py')) == (2, 6), (rd('sub'), rd('px'), rd('py')))
 poke_angry(1, 6); flush()
-press('a', 2); tick(22)
+press('a', 2); tick(JUMP - 2)
 check('T4 alive after jump', rd('state') == PS_PLAY, rd('state'))
 check('T4 landed 2 cells on', (rd('px'), rd('py')) == (0, 6) and rd('jump') == 0, (rd('px'), rd('py'), rd('jump')))
 check('T4 angry stunned', rd('gstate', cell(1, 6)) & 3 == 2, rd('gstate', cell(1, 6)))
