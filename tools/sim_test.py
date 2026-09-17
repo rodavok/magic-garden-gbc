@@ -98,17 +98,16 @@ check('T6b mushroom killed, score 70', rd('score') == 70 and rd('state') == PS_P
 # T6c power expiry resets chain/mult
 wr('power_timer', 1); wr('power_tick', 1); tick(2)
 check('T6c power expired', rd('power_timer') == 0 and rd('mult') == 1 and rd('chain') == 0, (rd('power_timer'), rd('mult'), rd('chain')))
-# T8 turn rule: early press turns at once (sub resets), late press is queued for the boundary
-tick(CELL - rd('sub'))                       # player at (0,9)? no: aligned at a boundary, moving down at x=0
-check('T8 aligned', rd('sub') == 0, rd('sub'))
-tick(1)                                       # sub = 1 (< TURN_WINDOW)
+# T8 turn input: presses are queued for the next boundary; a d-pad roll (old dir still held) is not dropped
+tick(CELL - rd('sub')); tick(2)               # sub = 2, moving down at x=0
 press('right', 2)
-check('T8 early press turns now', rd('dir') == 1 and rd('sub') <= 2 and rd('next_dir') == 255, (rd('dir'), rd('sub'), rd('next_dir')))
-tick(6 - rd('sub'))                           # sub = 6
-press('down', 2)
-check('T8 late press queued', rd('dir') == 1 and rd('next_dir') == 2, (rd('dir'), rd('next_dir')))
-tick(CELL - rd('sub'))                        # boundary: queued turn applies
-check('T8 queued turn applied at boundary', rd('dir') == 2 and rd('next_dir') == 255, (rd('dir'), rd('next_dir')))
+check('T8 press queued, no immediate turn', rd('dir') == 2 and rd('next_dir') == 1, (rd('dir'), rd('next_dir')))
+tick(CELL - rd('sub'))
+check('T8 queued turn applied at boundary', rd('dir') == 1 and rd('next_dir') == 255, (rd('dir'), rd('next_dir')))
+pb.button_press('right'); tick(2); pb.button_press('down'); tick(2); pb.button_release('right'); pb.button_release('down')
+check('T8 roll with old dir held is registered', rd('next_dir') == 2, rd('next_dir'))
+tick(CELL - rd('sub'))
+check('T8 roll turn applied', rd('dir') == 2, rd('dir'))
 press('left', 2); tick(CELL - rd('sub'))      # back to x=0 for T7
 # T7 death: angry ahead while unpowered
 poke_angry(rd('px') + (0 if rd('dir') != 1 else 1), rd('py') + (1 if rd('dir') == 2 else 0)); step_once()

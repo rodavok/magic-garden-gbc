@@ -13,7 +13,6 @@
 
 /* ---- tuning (all "unknown" values from the brief live here) ---- */
 #define CELL_FRAMES      12   /* frames to cross one cell (5 cells/s) */
-#define TURN_WINDOW      3    /* a turn pressed within the first 25% of a cell applies at once */
 #define JUMP_FRAMES      24   /* airborne time: clears exactly one cell */
 #define MAX_TRAIL        48
 #define MAX_ANGRY        64

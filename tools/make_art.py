@@ -452,15 +452,15 @@ block('T_TREE', """
 0112222332222110
 1222223322222221
 1222222222222221
-1211222222211221
-1211222222211221
+1221122222211221
+1221122222211221
 1222222222222221
-1222221111222221
-0122222222222210
+1222122222221221
+1222212222212221
+0122222111122210
 0012322222232100
 0001122222211000
 0000011211100000
-0000000110000000
 0000000110000000
 """, 2)
 # sleeping cat, 24x16, light blue with black outline and purple ears/nose
@@ -647,10 +647,7 @@ def put(x, y, name, pal, flip=0):
 for x in range(W):
     put(x, 0, 'T_BRICK', P_HUD); put(x, 1, 'T_BRICK', P_HUD); put(x, 2, 'T_BRICK_BOTTOM', P_HUD)
 for x in (2, 5, 14, 17): put(x, 1, 'T_WINDOW', P_HUD)
-# timer emblem (panel) at cols 8-11 rows 0-2 ; digits drawn at runtime at (9,1),(10,1)
-for x in range(8, 12):
-    for y in range(0, 3): put(x, y, 'T_PANEL', P_HUD)
-put(8, 1, 'T_PANEL_EDGE_L', P_HUD); put(11, 1, 'T_PANEL_EDGE_R', P_HUD)
+# flask timer digits are drawn over the bricks at (9,1),(10,1) while a flask is active
 # side columns rows 3-14: grass + trees, cat left, witch right
 for y in range(3, 15):
     for x in list(range(0, 4)) + list(range(16, 20)):

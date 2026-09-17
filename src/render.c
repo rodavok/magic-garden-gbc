@@ -180,7 +180,7 @@ static void hud_prepare(void) {
         digits(hud_timer, G.power_timer, 2);
         if (G.mult > 1) { hud_mult[0] = font_tile('x'); hud_mult[1] = FONT_FIRST + (G.mult % 10); }
         else hud_mult[0] = hud_mult[1] = T_PANEL;
-    } else { hud_timer[0] = hud_timer[1] = T_PANEL; hud_mult[0] = hud_mult[1] = T_PANEL; }
+    } else { hud_timer[0] = hud_timer[1] = T_BRICK; hud_mult[0] = hud_mult[1] = T_PANEL; }
     hud_ready = 1;
 }
 static void hud_flush(void) {

@@ -320,18 +320,15 @@ void game_update(uint8_t joy, uint8_t pressed) {
         return;
     }
     G.slow_tick = (G.slow_tick + 1) & 3;
-    /* input: a turn early in a cell applies at once (snapping back to the cell centre);
-       later presses are queued for the next cell boundary */
+    /* input: any perpendicular direction that is newly pressed (preferred) or held queues a turn for the
+       next cell boundary. Reading held directions too means a d-pad roll (Up still held while Left goes
+       down) is never dropped. */
     {
-        uint8_t want = D_NONE;
-        if (joy & J_UP)         { if (G.dir != D_DOWN)  want = D_UP; }
-        else if (joy & J_DOWN)  { if (G.dir != D_UP)    want = D_DOWN; }
-        else if (joy & J_LEFT)  { if (G.dir != D_RIGHT) want = D_LEFT; }
-        else if (joy & J_RIGHT) { if (G.dir != D_LEFT)  want = D_RIGHT; }
-        if (want != D_NONE && want != G.dir) {
-            if (G.sub < TURN_WINDOW && G.jump == 0) { G.dir = want; G.sub = 0; G.next_dir = D_NONE; }
-            else G.next_dir = want;
-        }
+        static const uint8_t jbit[4] = { J_UP, J_RIGHT, J_DOWN, J_LEFT };
+        uint8_t d, want = D_NONE, opp = (G.dir + 2) & 3;
+        for (d = 0; d < 4; d++) if (d != G.dir && d != opp && (pressed & jbit[d])) want = d;
+        if (want == D_NONE) for (d = 0; d < 4; d++) if (d != G.dir && d != opp && (joy & jbit[d])) want = d;
+        if (want != D_NONE) G.next_dir = want;
     }
     if ((pressed & J_A) && G.jump == 0) { G.jump = JUMP_FRAMES; sfx_jump(); }
     if (pressed & J_B) do_drop();
