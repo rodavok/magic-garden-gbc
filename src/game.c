@@ -112,6 +112,8 @@ void game_init(void) {
     uint8_t i;
     for (i = 0; i < NCELLS; i++) { G.grid[i] = C_EMPTY; G.gstate[i] = 0; G.gtimer[i] = 0; }
     G.trail_len = 0; G.n_angry = 0; G.n_appear = 0; G.n_flask = 0; G.n_friend = 0; G.hop_sprites = 0;
+    G.clear_n = 0; G.clear_k = 0; G.clear_timer = 0;
+    for (i = 0; i < MAX_POPS; i++) G.pops[i].t = 0;
     G.px = 1; G.py = 1; G.dir = D_RIGHT; G.dir_choice = D_RIGHT; G.sub = 0; G.turned = 0;
     G.z = 0; G.zvel = 0; G.pending_grow = 0; G.drop_anim = 0; G.turn_timer = 0; G.turn_pose = 0;
     G.pad_last_size = 0xFF; G.pad_anim = 0;
@@ -142,10 +144,18 @@ static void power_expire(void) {
     G.angry_spawn_timer = 1;   /* an enemy spawns as soon as the flask wears off */
 }
 
+static void add_pop(uint8_t cell, uint16_t val) {
+    uint8_t k;
+    for (k = 0; k < MAX_POPS; k++) if (G.pops[k].t == 0) {
+        G.pops[k].x = cell % GW; G.pops[k].y = cell / GW; G.pops[k].t = 60; G.pops[k].val = val; return;
+    }
+}
 static void kill_enemy(uint8_t i) {
+    uint16_t val = (uint16_t)(10 + (uint16_t)G.chain * 10) * G.mult;
     if (G.grid[i] == C_ANGRY) remove_angry(i); else set_cell(i, C_EMPTY);
     sfx_kill();
-    G.score += (uint32_t)(10 + (uint16_t)G.chain * 10) * G.mult;
+    add_pop(i, val);
+    G.score += val;
     G.chain++;
     G.total_kills++;
     if (G.chain > G.best_chain) G.best_chain = G.chain;
@@ -193,17 +203,19 @@ static void advance_trail(uint8_t old_head, uint8_t grew) {
     set_cell(old_head, C_TRAIL);
 }
 
+/* B: every trail oppie is judged now (on the pad or not) and resolved one per 10 frames, as the original's
+   FollowClear objects do; pending cells are harmless to walk through */
 static void do_drop(void) {
     uint8_t k, nsaved = 0, i;
     G.drop_anim = 16;
-    if (G.trail_len == 0) return;
+    if (G.trail_len == 0 || G.clear_n) return;
     for (k = 0; k < G.trail_len; k++) {
         i = G.trail[k];
-        if (!G.pad_flash && on_pad(i)) {
-            set_cell(i, C_EMPTY); nsaved++;
-            G.score += (uint32_t)10 * (k + 1);
-        } else add_angry(i, ENEMY_IDLE);
+        G.gstate[i] = (!G.pad_flash && on_pad(i)) ? 1 : 0;
+        if (G.gstate[i]) nsaved++;
+        set_cell(i, C_CLEARING);
     }
+    G.clear_n = G.trail_len; G.clear_k = 0; G.clear_timer = 10;
     G.trail_len = 0;
     G.hud_dirty = 1;
     if (nsaved == 0) { sfx_bad_drop(); return; }
@@ -219,9 +231,24 @@ static void do_drop(void) {
     }
     G.palette_set = (uint8_t)(G.saved / 50);
     if (G.palette_set > 3) G.palette_set = 3;
-    if (G.saved >= WIN_SAVED) { G.state = PS_WIN; G.state_timer = 0; sfx_win(); return; }
     G.pad_flash = PAD_FLASH;   /* the pad flashes and a new one appears when it ends */
     G.dirty_rows = 0xFFF;
+}
+static void update_clearing(void) {
+    if (!G.clear_n) return;
+    if (--G.clear_timer) return;
+    G.clear_timer = 10;
+    {
+        uint8_t i = G.trail[G.clear_k];
+        if (G.grid[i] == C_CLEARING) {
+            if (G.gstate[i]) { set_cell(i, C_EMPTY); G.score += (uint32_t)10 * (G.clear_k + 1); add_pop(i, (uint16_t)10 * (G.clear_k + 1)); G.hud_dirty = 1; }
+            else add_angry(i, ENEMY_IDLE);
+        }
+        if (++G.clear_k == G.clear_n) {
+            G.clear_n = 0;
+            if (G.saved >= WIN_SAVED) { G.state = PS_WIN; G.state_timer = 0; sfx_win(); }
+        }
+    }
 }
 
 /* ---- angry oppies: idle 128 (look at 64), hop 16 frames, stun 240; frozen while a flask is active ---- */
@@ -363,7 +390,7 @@ static void step_arrive(void) {
     if (G.z == 0) { uint8_t g2 = 0; if (arrive_cell(ni, &g2)) return; grew |= g2; }
     advance_trail(old, grew);
     G.px = ni % GW; G.py = ni / GW;
-    if (G.grid[ni] >= C_APPEAR_ANGRY) { set_cell(ni, C_EMPTY); list_remove(G.appear_list, &G.n_appear, ni); }
+    if (G.grid[ni] == C_APPEAR_ANGRY || G.grid[ni] == C_APPEAR_MUSH) { set_cell(ni, C_EMPTY); list_remove(G.appear_list, &G.n_appear, ni); }
 }
 
 void game_update(uint8_t joy, uint8_t pressed) {
@@ -428,6 +455,8 @@ void game_update(uint8_t joy, uint8_t pressed) {
 
     update_entities();
     update_spawners();
+    update_clearing();
+    { uint8_t k; for (k = 0; k < MAX_POPS; k++) if (G.pops[k].t) G.pops[k].t--; }
 
     /* vulnerable enemies flash blue/white every 6 frames while a flask is active */
     {

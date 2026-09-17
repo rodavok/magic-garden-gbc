@@ -88,6 +88,7 @@ static void prepare_row(uint8_t y) {
             switch (g) {
             case C_FRIEND: t = T_OPPIE; break;
             case C_TRAIL:  t = T_OPPIE_HAPPY; break;
+            case C_CLEARING: t = G.gstate[i] ? T_OPPIE_HAPPY : T_OPPIE; if (!G.gstate[i]) a += blue_add; break;
             case C_ANGRY:
                 if (A_STATE(st) == A_HOP && (st & A_SPRITE)) break;   /* drawn as a sprite while hopping */
                 a += blue_add;
@@ -176,7 +177,12 @@ static void draw_sprites(void) {
         lift = G.z / 20;                       /* tenths of a unit -> pixels */
         move_sprite(2, sx + 8, sy + 16 + 16);  /* shadow at the feet */
     } else move_sprite(2, 0, 0);
-    if (G.state == PS_DEAD && (G.state_timer & 4)) { move_sprite(0, 0, 0); move_sprite(1, 0, 0); }
+    if (G.state == PS_DEAD) {   /* bump: recoil 4 px against the heading, then blink */
+        uint8_t back = G.state_timer > 60 ? (uint8_t)((90 - G.state_timer) >> 3) : 4;
+        switch (G.dir) { case D_UP: sy += back; break; case D_DOWN: sy -= back; break; case D_LEFT: sx += back; break; default: sx -= back; break; }
+        tile = SPR_DOWN0; prop = 0;
+    }
+    if (G.state == PS_DEAD && G.state_timer < 60 && (G.state_timer & 4)) { move_sprite(0, 0, 0); move_sprite(1, 0, 0); }
     else {
         set_sprite_tile(0, tile); set_sprite_prop(0, prop); move_sprite(0, sx + 8, sy + 16 - lift);
         set_sprite_tile(1, tile + 2); set_sprite_prop(1, prop); move_sprite(1, sx + 8, sy + 32 - lift);
@@ -206,6 +212,18 @@ static void draw_sprites(void) {
         move_sprite(n, ORG_X + (c % GW) * 8 + 8, ORG_Y + (c / GW) * 8 - 8 + 16 - (G.flask_fall[i] >> 1));
     }
     for (; n < 3 + MAX_HOP_SPRITES + MAX_FLASK; n++) move_sprite(n, 0, 0);
+    /* score pop-ups: up to 4 white digits rising for 60 frames */
+    for (i = 0; i < MAX_POPS; i++) {
+        pop_t *p = &G.pops[i];
+        uint8_t d[4], nd = 0, px, py, k;
+        uint16_t v = p->val;
+        if (p->t == 0) { for (k = 0; k < 4; k++) move_sprite(n++, 0, 0); continue; }
+        do { uint8_t q = 0; while (v >= 10) { v -= 10; q++; } d[nd++] = (uint8_t)v; v = q; } while (v && nd < 4);
+        px = ORG_X + p->x * 8 + 8 + 4 - (uint8_t)(nd * 4);
+        py = ORG_Y + p->y * 8 + 16 - (uint8_t)((60 - p->t) >> 2);
+        for (k = nd; k > 0; k--) { set_sprite_tile(n, SPR_DIGIT0 + d[k - 1] * 2); set_sprite_prop(n, 6); move_sprite(n, px, py); px += 8; n++; }
+        for (k = nd; k < 4; k++) move_sprite(n++, 0, 0);
+    }
 }
 
 /* decimal digits by repeated subtraction: no 32-bit division (SDCC's is very slow) */

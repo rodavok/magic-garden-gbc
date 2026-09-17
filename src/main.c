@@ -111,6 +111,7 @@ static void ending_begin(void) {
 }
 /* runs in the logic phase; VRAM text goes through hud_text after wait_vbl_done in the flush phase */
 static uint8_t end_text_pending;
+static uint8_t hint_shown;
 static void ending_update(uint8_t pressed) {
     switch (end_phase) {
     case 0:   /* fill the arena with friendly oppies, one cell every 5 frames */
@@ -158,6 +159,9 @@ static void start_game(void) {
     render_init();
     render_grid_full();
     hud_draw_all();
+    wait_vbl_done();
+    hud_text(0, 17, "PRESS RIGHT OR DOWN ");
+    hint_shown = 1;
     SHOW_SPRITES;
 }
 
@@ -225,6 +229,9 @@ void main(void) {
         }
         if (state == ST_PLAY) {
             G.dbg[2] = LY_REG;
+            if (hint_shown && G.state != PS_WAIT) {
+                uint8_t row[20]; memset(row, T_PANEL, 20); set_bkg_tiles(0, 17, 20, 1, row); hint_shown = 0; G.hud_dirty = 1;
+            }
             render_flush();
             G.dbg[3] = LY_REG;
             if (G.state == PS_DEAD && G.state_timer == 0) {

@@ -1,12 +1,12 @@
 """Shared helper: game_t layout from include/game.h (SDCC packs structs) + _G address from the .noi file."""
 import re, os
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-SZ = {'uint8_t': 1, 'int8_t': 1, 'uint16_t': 2, 'int16_t': 2, 'uint32_t': 4}
+SZ = {'uint8_t': 1, 'int8_t': 1, 'uint16_t': 2, 'int16_t': 2, 'uint32_t': 4, 'pop_t': 5}
 
 def layout(noi_path=None):
     hdr = open(os.path.join(ROOT, 'include/game.h')).read()
     defs = {m.group(1): int(m.group(2)) for m in re.finditer(r'#define (\w+)\s+(\d+)', hdr)}
-    body = hdr[hdr.index('typedef struct {') + 16: hdr.index('} game_t;')]
+    end = hdr.index('} game_t;'); body = hdr[hdr.rindex('typedef struct {', 0, end) + 16: end]
     OFF, SIZE, off = {}, {}, 0
     for line in body.split('\n'):
         line = re.sub(r'/\*.*?\*/', '', line).strip()

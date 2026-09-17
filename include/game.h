@@ -46,7 +46,9 @@
 #define ENEMY_HI  11
 
 /* ---- cell contents ---- */
-enum { C_EMPTY, C_FRIEND, C_TRAIL, C_ANGRY, C_MUSH, C_FLASK, C_APPEAR_ANGRY, C_APPEAR_MUSH };
+enum { C_EMPTY, C_FRIEND, C_TRAIL, C_ANGRY, C_MUSH, C_FLASK, C_APPEAR_ANGRY, C_APPEAR_MUSH, C_CLEARING };
+#define MAX_POPS 6
+typedef struct { uint8_t x, y, t; uint16_t val; } pop_t;
 /* angry oppie state (gstate bits 0-1); look/hop dir in bits 2-3; bit 6: rendered as a hop sprite */
 enum { A_IDLE, A_LOOK, A_HOP, A_STUN };
 #define A_STATE(s)  ((s) & 3)
@@ -67,6 +69,8 @@ typedef struct {
     uint8_t flask_list[MAX_FLASK];
     uint8_t flask_fall[MAX_FLASK];   /* units still to fall; 0 = on the floor */
     uint8_t trail_len, n_angry, n_appear, n_flask, n_friend, hop_sprites;
+    uint8_t clear_n, clear_k, clear_timer;   /* drop-off cascade: one segment every 10 frames */
+    pop_t pops[MAX_POPS];
 
     uint8_t px, py, dir, dir_choice, sub;
     uint8_t turned;
