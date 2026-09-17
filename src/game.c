@@ -2,6 +2,7 @@
 #include <rand.h>
 #include "game.h"
 #include "sfx.h"
+#include "music.h"
 
 game_t G;
 
@@ -132,6 +133,7 @@ void game_init(void) {
 
 static void die(void) {
     G.state = PS_DEAD; G.state_timer = 90; G.z = 0; G.zvel = 0;
+    music_play(SONG_LOSE);
     sfx_death();
 }
 

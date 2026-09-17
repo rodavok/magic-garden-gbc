@@ -8,6 +8,7 @@
 #include "gfx_data.h"
 #include "sfx.h"
 #include "save.h"
+#include "music.h"
 
 static uint8_t screen_buf[20 * 18];
 uint8_t menu_sel;
@@ -19,6 +20,7 @@ static const uint8_t hop_row[N_HOP] = { 14, 15, 14 };
 static void hide_sprites(void) { uint8_t i; for (i = 0; i < 40; i++) move_sprite(i, 0, 0); }
 
 void show_title(void) {
+    music_stop();
     HIDE_SPRITES;
     hide_sprites();
     wait_vbl_done();
@@ -106,6 +108,7 @@ static void ending_panel(const char *a, const char *b, const char *c) {
 }
 void ending_begin(void) {
     end_phase = 0; end_cell = 0; end_timer = 0; end_page = 0;
+    music_play(SONG_WIN);
     G.state = PS_WIN; G.drop_anim = 0; G.turn_timer = 0; G.z = 0;
 }
 /* runs in the logic phase; VRAM text goes through hud_text after wait_vbl_done in the flush phase */
@@ -117,7 +120,7 @@ void ending_update(uint8_t pressed) {
         if (++end_timer >= 5) {
             end_timer = 0;
             if (G.grid[end_cell] != C_FRIEND) { G.grid[end_cell] = C_FRIEND; G.dirty_rows |= (uint16_t)1 << (end_cell / GW); }
-            if (++end_cell == NCELLS) { end_phase = 1; end_timer = 0; end_text_pending = 1; }
+            if (++end_cell == NCELLS) { end_phase = 1; end_timer = 0; end_text_pending = 1; music_play(SONG_END); }
         }
         break;
     case 1:   /* dialogue pages: A/Start or 240 frames each */
@@ -151,6 +154,7 @@ void ending_flush(void) {
 void start_game(void) {
     initrand(DIV_REG | ((uint16_t)DIV_REG << 8) ^ 0x5A17);
     game_init();
+    music_play(SONG_GAMEPLAY);
     HIDE_SPRITES;
     hide_sprites();
     wait_vbl_done();

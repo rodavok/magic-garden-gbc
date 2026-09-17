@@ -59,6 +59,8 @@ Art is generated: edit `tools/make_art.py` and run `python3 tools/make_art.py` t
 - Flasks: counter of 6, overflow levels (red/green/blue/gold), floor upgrades, 48-unit power timer,
   chain scoring with multiplier, mushroom kills need blue/gold, gold adds a permanent friendly oppie
 - Palette set change every 50 saved, win at 200, game over on any collision, HUD, sound effects
+- Music via hUGEDriver: gameplay loop, win sting, lose sting, ending theme (auto-transcribed from the originals)
+- Battery-backed high scores and stats; ending sequence with dialogue and credits
 
 ## Backlog
 

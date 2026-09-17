@@ -9,6 +9,18 @@
 #include <stdint.h>
 
 static uint32_t fb[160 * 144];
+static FILE *wav; static uint32_t wav_samples;
+static void sample_cb(GB_gameboy_t *gb, GB_sample_t *sample) { (void)gb; fwrite(sample, sizeof(GB_sample_t), 1, wav); wav_samples++; }
+static void wav_open(const char *path) {
+    uint8_t hdr[44] = {0}; wav = fopen(path, "wb"); fwrite(hdr, 1, 44, wav);
+}
+static void wav_close(void) {
+    uint32_t data = wav_samples * 4, riff = 36 + data, sr = 44100, br = sr * 4, one = 16; uint16_t ch = 2, ba = 4, bits = 16, fmt = 1;
+    fseek(wav, 0, SEEK_SET);
+    fwrite("RIFF", 1, 4, wav); fwrite(&riff, 4, 1, wav); fwrite("WAVEfmt ", 1, 8, wav); fwrite(&one, 4, 1, wav);
+    fwrite(&fmt, 2, 1, wav); fwrite(&ch, 2, 1, wav); fwrite(&sr, 4, 1, wav); fwrite(&br, 4, 1, wav); fwrite(&ba, 2, 1, wav); fwrite(&bits, 2, 1, wav);
+    fwrite("data", 1, 4, wav); fwrite(&data, 4, 1, wav); fclose(wav);
+}
 static uint32_t enc(GB_gameboy_t *gb, uint8_t r, uint8_t g, uint8_t b) { (void)gb; return (r << 16) | (g << 8) | b; }
 static void vblank(GB_gameboy_t *gb, GB_vblank_type_t t) { (void)gb; (void)t; }
 
@@ -50,6 +62,7 @@ int main(int argc, char **argv) {
     GB_set_rgb_encode_callback(&gb, enc);
     GB_set_vblank_callback(&gb, vblank);
     GB_set_color_correction_mode(&gb, GB_COLOR_CORRECTION_DISABLED);
+    if (getenv("SAMEBOY_WAV")) { wav_open(getenv("SAMEBOY_WAV")); GB_set_sample_rate(&gb, 44100); GB_apu_set_sample_callback(&gb, sample_cb); }
     char *script = strdup(argv[2]); int shot = 0; char path[1024];
     for (char *tok = strtok(script, ","); tok; tok = strtok(NULL, ",")) {
         char *colon = strchr(tok, ':'); int n = atoi(tok); const char *btn = colon ? colon + 1 : NULL;
@@ -59,6 +72,7 @@ int main(int argc, char **argv) {
         snprintf(path, sizeof path, "%s_%02d_%s.ppm", argv[3], shot, btn ? btn : "idle"); save_ppm(path);
         snprintf(path, sizeof path, "%02d_%s", shot, btn ? btn : "idle"); dump_state(&gb, path); shot++;
     }
+    if (wav) wav_close();
     GB_free(&gb);
     return 0;
 }

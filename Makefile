@@ -14,8 +14,9 @@ CFLAGS  := -Wa-l -Wl-m -Wl-j -Wf-MMD -Wf--opt-code-speed -Iinclude -I$(BUILD)/re
 LDFLAGS := -Wm-yC -Wm-yt0x1B -Wm-ya1 -Wm-yn"MAGIC GARDEN" -Wl-yo4 -Wm-yj
 
 SRC_C  := $(wildcard src/*.c)
+SRC_S  := $(wildcard src/*.s)
 GEN_C  := $(patsubst res/%.png,$(BUILD)/res/%.c,$(wildcard res/*.png))
-OBJS   := $(patsubst src/%.c,$(OBJDIR)/%.o,$(SRC_C)) $(patsubst $(BUILD)/res/%.c,$(OBJDIR)/res_%.o,$(GEN_C))
+OBJS   := $(patsubst src/%.c,$(OBJDIR)/%.o,$(SRC_C)) $(patsubst src/%.s,$(OBJDIR)/%.o,$(SRC_S)) $(patsubst $(BUILD)/res/%.c,$(OBJDIR)/res_%.o,$(GEN_C)) lib/hUGEDriver.o
 
 all: $(BUILD)/$(PROJECT).gbc
 
@@ -26,6 +27,9 @@ $(BUILD)/res/%.c: res/%.png res/%.opts | $(BUILD)/res
 
 $(OBJDIR)/%.o: src/%.c | $(OBJDIR)
 	$(LCC) $(CFLAGS) -c -o $@ $<
+
+$(OBJDIR)/%.o: src/%.s | $(OBJDIR)
+	$(LCC) -c -o $@ $<
 
 $(OBJDIR)/res_%.o: $(BUILD)/res/%.c | $(OBJDIR)
 	$(LCC) $(CFLAGS) -c -o $@ $<

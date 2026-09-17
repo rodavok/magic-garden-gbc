@@ -24,6 +24,11 @@ SAMEBOY_BOOT=~/.local/opt/SameBoy-1.0.3/build/bin/BootROMs/cgb_boot.bin ./tools/
 - `src/palettes.c` 4 in-game palette sets + title set; `src/sfx.c` register-level sound effects
 - `tools/make_art.py` all pixel art as text + frame/title tile maps -> generated `src/gfx_data.c` (committed, ROM bank 1)
 - `tools/gml_dump.py` disassembles the original's GameMaker bytecode (reference/gml/, git-ignored)
+- `tools/transcribe.py` OGG -> hUGEDriver song C (row = 11 frames); `tools/eval_transcription.py` scores a
+  transcription; `src/music.c` plays songs (data + driver in ROM bank 2), `src/music_data.c` generated
+- `lib/hUGEDriver.o` hUGEDriver assembled with RGBDS 0.7.0 (`rgbasm -I. -DGBDK`, section renamed to
+  `ROMX, BANK[2]`), converted with rgb2sdas -b 2, then its `S b*hUGE_* Ref000002` records patched to
+  `Ref000000` (GBDK's linker rejects nonzero S_REF); `src/hugebank.s` defines those bank symbols as 2
 - `MAGIC_GARDEN_GBC_BRIEF.md` research on the original game; `reference/` extracted originals (git-ignored)
 
 ## Hard rules (learned the hard way)
@@ -38,7 +43,10 @@ SAMEBOY_BOOT=~/.local/opt/SameBoy-1.0.3/build/bin/BootROMs/cgb_boot.bin ./tools/
 - Game logic runs from scanline 2 (`while (LY_REG != 2)`), so PyBoy tests read RAM at frame boundaries
   and step by `frame_count`, not emulator ticks.
 - Palette budget: BG 0/1 friendly on floor A/B, 2/3 angry+mushroom, 4/5 star row, 6 decoration
-  (ground, black, purple, light blue), 7 HUD. OBJ 0 player, 1-4 flasks, 5 shadow, 6 oppie sprite.
+  (ground, black, purple, light blue), 7 HUD. OBJ 0 player, 1-4 flasks, 5 shadow, 6 red oppie/pop-ups, 7 blue oppie.
+- Sound: `music_update()` runs in VBlank with bank 2 mapped; sfx.c mutes the driver's channel for the
+  effect's length via `music_sfx_hold()`. The wave channel plays an octave low for a one-cycle waveform,
+  so bass waves hold two cycles. hUGE note 0 is C2 (65 Hz).
 
 ## Original rules (read from UFO 50's GML bytecode with tools/gml_dump.py; keep the port on these)
 
@@ -63,7 +71,8 @@ SAMEBOY_BOOT=~/.local/opt/SameBoy-1.0.3/build/bin/BootROMs/cgb_boot.bin ./tools/
 
 ## Remaining features (backlog)
 
-1. Music: hUGETracker arrangements of gameplay / clear / ending (reference OGGs in `reference/audio/`)
+1. Music quality: the four tracks are auto-transcribed (tools/transcribe.py) and approximate; hand-polish
+   melodies/harmony in src/music_data.c or re-export from hUGETracker
 2. Sound effects closer to the originals (sfx_special02 on flask, the 150/100/50 ticks, witch cackle)
 3. Ending polish: the witch walking in beside the Gardener, a happy sprite, the original's credit roll timing
 4. Palette fade on transitions; "PUSH RIGHT OR DOWN" hint while waiting at the start

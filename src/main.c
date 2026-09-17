@@ -6,6 +6,7 @@
 #include "gfx_data.h"
 #include "sfx.h"
 #include "save.h"
+#include "music.h"
 
 enum { ST_TITLE, ST_SCORES, ST_PLAY, ST_OVER, ST_ENDING };
 
@@ -72,6 +73,7 @@ void main(void) {
         }
         /* phase 2: VRAM writes in VBlank */
         wait_vbl_done();
+        music_update();
         if (state == ST_ENDING) {
             render_flush();
             ending_flush();
