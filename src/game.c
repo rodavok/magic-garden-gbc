@@ -68,13 +68,14 @@ static void spawn_friend(void) {
     if (i == 0xFF) return;
     set_cell(i, C_FRIEND); G.n_friend++;
 }
-static void spawn_appear(uint8_t type, uint8_t tries) {
+static uint8_t spawn_appear(uint8_t type, uint8_t tries) {
     uint8_t i;
-    if (G.n_appear >= MAX_APPEAR) return;
+    if (G.n_appear >= MAX_APPEAR) return 0;
     i = random_free_cell(tries, 0);
-    if (i == 0xFF) return;
+    if (i == 0xFF) return 0;
     set_cell(i, type); G.gtimer[i] = APPEAR_FRAMES; G.gstate[i] = 0;
     G.appear_list[G.n_appear++] = i;
+    return 1;
 }
 static void spawn_flask(uint8_t level) {
     uint8_t i;
@@ -356,9 +357,10 @@ static void update_spawners(void) {
         if (--G.pad_flash == 0) make_pad();
         else if ((G.pad_flash % PAD_BLINK_SAVE) == PAD_BLINK_SAVE - 1) pad_blink();
     } else if (--G.pad_life == 0) {
-        uint8_t n = G.palette_set + 1;   /* 1 mushroom per rank */
+        /* rank+1 mushrooms, but the original shares 20 random tries among them and stops when they run out */
+        uint8_t n = G.palette_set + 1, tries = 20;
         sfx_spawn();
-        while (n--) spawn_appear(C_APPEAR_MUSH, 20);
+        while (n && tries--) if (spawn_appear(C_APPEAR_MUSH, 1)) n--;
         make_pad();
     } else if (++G.pad_anim == PAD_BLINK) {
         G.pad_anim = 0;
