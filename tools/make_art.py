@@ -88,16 +88,17 @@ OPPIE_SPR = """
 .111111.
 ........
 """
-# Flask (bottom 8 rows of an 8x16 OBJ; top is blank): 1 = dark, 2 = colour, 3 = white
+# Flask (bottom 8 rows of an 8x16 OBJ; top is blank): 1 = dark, 2 = colour, 3 = white.
+# Round-bottomed like the original's itemPotion: dark cork, neck, highlight on the body
 FLASK = """
-...33...
-...22...
-..2222..
-.223222.
-.232222.
-.222222.
-..2112..
 ..1111..
+..1331..
+...11...
+.112211.
+12322221
+13222221
+12222221
+.111111.
 """
 SHADOW = """
 ........
