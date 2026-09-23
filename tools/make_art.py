@@ -111,6 +111,105 @@ SHADOW = """
 """
 SCOREPOP = None  # v2
 
+
+# ------------------------------------------------------------------ sidebars (the original's grove)
+# Trees: BG palette 6 (0 ground, 1 blue rim/skirt, 2 tree colour, 3 white eyes); the tree colour follows the
+# rank like the original's (purple, red, blue, white). Drawn back to front, clipped to the 32x96 side strip.
+TREE24 = """
+........11111111........
+......112222222211......
+....1122222222222211....
+...122222222222222221...
+..12222222222222222221..
+..12222222222222222221..
+.1222222222222222222221.
+.1222223322222233222221.
+.1222223122222231222221.
+.1222223322222233222221.
+.1222222222332222222221.
+122222222222222222222221
+112222222222222222222211
+111222222222222222222111
+111121222122212221221111
+111112111211121112111111
+111111111111111111111111
+111111111111111111111111
+.1111111111111111111111.
+..1.111.11111.1111.11...
+"""
+TUFT = """
+.22.22..
+2112112.
+.1..1...
+"""
+SIDE_TREES_L = [(-10, -10), (12, 4), (-10, 22), (12, 62), (-10, 76), (14, 90)]
+SIDE_TREES_R = [(-12, -8), (14, 2), (-10, 40), (14, 54), (-12, 70), (12, 86)]
+SIDE_TUFTS_L = [(6, 40), (20, 60)]
+SIDE_TUFTS_R = [(2, 34), (22, 44)]
+def compose_side(trees, tufts):
+    img = [['0'] * 32 for _ in range(96)]
+    for art, spots in ((TUFT, tufts), (TREE24, trees)):
+        r = [l for l in art.strip('\n').split('\n')]
+        for x, y in spots:
+            for j, line in enumerate(r):
+                for i, c in enumerate(line):
+                    if c != '.' and 0 <= x + i < 32 and 0 <= y + j < 96: img[y + j][x + i] = c
+    return img
+
+# Cat asleep in the left grove: 24x16, three 8x16 objects, OBJ palette 5 (1 brown, 2 orange, 3 white)
+CAT = ["." * 24] * 3 + [
+ "..1....1" + "." * 16,
+ ".131..131" + "." * 15,
+ ".12211221" + "......" + "11111" + "....",
+ "1221212221" + ".." + "1122122211" + "..",
+ "12222222221" + "122212222221" + ".",
+ "12112221121" + "222212222221" + ".",
+ "12222122221" + "222221222221" + ".",
+ "12223132221" + "222222222221" + ".",
+ ".122333221" + "2222212222221" + ".",
+ "..1111111" + "22222222222221" + ".",
+ "." + "133" + "2" * 19 + "1",
+ "." + "1331" + "11111" + "2" * 13 + "1",
+ "..11" + ".." + "1" * 16 + "..",
+]
+# Yawning (the original's bgCatYawn): she wakes for the 60 frames between a flask being made and it dropping in
+CAT_YAWN = list(CAT)
+CAT_YAWN[12] = "12231113221" + CAT[12][11:]
+CAT_YAWN[13] = ".123111321" + CAT[13][10:]
+CAT_YAWN[14] = "..1133311" + CAT[14][9:]
+# Cloverana in the right grove: 16x32 (four 8x16 objects), OBJ palette 6 (1 black, 2 blue, 3 mint).
+# Frames as the original's bgWitch: 0 idle, 1-2 zap (staff raised, spark) while a mushroom grows,
+# 3-4 jump for joy when the gardener dies.
+WITCH_BODY = [
+ "..........1.....", ".........121....", "........1221....", ".......12221....", "......122221....",
+ ".....1222221....", "....12222221....", "...1222222221...", ".11111111111111.", "1222222222222221",
+ ".11133333333111.", "..113333333311..", "..113133331311..", "..113133331311..", "..113333333311..",
+ "..113331133311..", "..111333333111..", "....11111111....", "...1222222221...", "..132222222231..",
+ "..122222222221..", ".12222222222221.", ".11111111111111.", "...11......11...",
+]
+def witch_frame(dy, staff, spark=False, crouch=False):
+    c = [['.'] * 16 for _ in range(32)]
+    body = WITCH_BODY[:-1] if crouch else WITCH_BODY
+    for j, line in enumerate(body):
+        for i, ch in enumerate(line):
+            y = dy + j
+            if ch != '.' and 0 <= y < 32: c[y][i] = ch
+    def put(y, x, ch):
+        if 0 <= y < 32: c[y][x] = ch
+    if staff == 'low':                              # staff held at her side, orb at shoulder height
+        for y in range(14, 24 - crouch): put(dy + y, 14, '1')
+        for y, x in ((12, 14), (13, 13), (13, 14), (13, 15)): put(dy + y, x, '3')
+    else:                                           # staff raised above the hat, hand on it at chin height
+        put(dy + 19, 12, '2')                       # the low hand is gone from the dress
+        for y in range(-2, 20): put(dy + y, 14, '1')
+        for y, x in ((-5, 14), (-4, 13), (-4, 14), (-4, 15), (-3, 14)): put(dy + y, x, '3')
+        put(dy + 15, 14, '3'); put(dy + 15, 15, '3')
+    if spark:                                       # burst round the orb
+        for y, x in ((-7, 14), (-6, 12), (-6, 11), (-4, 11), (-2, 12), (-7, 11), (-1, 11), (-8, 13)): put(dy + y, x, '3')
+    return [''.join(r) for r in c]
+WITCH_FRAMES = [witch_frame(8, 'low'), witch_frame(8, 'high'), witch_frame(8, 'high', spark=True),
+                witch_frame(9, 'low', crouch=True), witch_frame(5, 'high')]
+
 def rows(s): return [l for l in s.strip('\n').split('\n')]
 
 sprite_tiles = []   # list of (name, 16 rows)
@@ -122,6 +221,11 @@ for k in ['%s%d' % (d, f) for d in ('down', 'up', 'left') for f in range(4)] + [
 add_sprite('SPR_FLASK', ['........']*8 + rows(FLASK))
 add_sprite('SPR_SHADOW', ['........']*8 + rows(SHADOW))
 add_sprite('SPR_OPPIE', ['........']*8 + rows(OPPIE_SPR))
+for _k in range(3): add_sprite('SPR_CAT%d' % _k, [r[_k*8:_k*8+8] for r in CAT])
+for _k in range(3): add_sprite('SPR_CAT_YAWN%d' % _k, [r[_k*8:_k*8+8] for r in CAT_YAWN])
+for _f, _fr in enumerate(WITCH_FRAMES):     # per frame: top-left, top-right, bottom-left, bottom-right
+    for _k, (_y0, _x0) in enumerate(((0, 0), (0, 8), (16, 0), (16, 8))):
+        add_sprite('SPR_WITCH%d_%d' % (_f, _k), [r[_x0:_x0+8] for r in _fr[_y0:_y0+16]])
 # dynamic tiles for score pop-ups: 6 pop-ups x 3 objects (8x16), composed at runtime from a 3x5 font
 # (3 objects = 6 digits, enough for the biggest award a long power chain can pay)
 for _k in range(18):
@@ -366,7 +470,7 @@ T('T_BLACK', """
 00000000
 00000000
 """)
-# --- decoration, palette P6: 0 = ground (dark green), 1 = black, 2 = purple, 3 = light blue
+# --- decoration, palette P6: 0 = ground, 1 = blue (tree rim and skirt), 2 = tree colour, 3 = white (eyes)
 def block(name, art, w):
     """split a w*8 x h*8 pixel block (strings of digits) into tiles named name0.. row-major"""
     r = rows(art); h = len(r) // 8
@@ -383,70 +487,6 @@ T('T_GRASS', """
 00000000
 00000000
 """)
-block('T_TREE', """
-0000011000110000
-0001122111221000
-0012222222222100
-0112222332222110
-1222223322222221
-1222222222222221
-1221122222211221
-1221122222211221
-1222222222222221
-1222122222221221
-1222212222212221
-0122222111122210
-0012322222232100
-0001122222211000
-0000011211100000
-0000000110000000
-""", 2)
-# sleeping cat, 24x16, light blue with black outline and purple ears/nose
-block('T_CAT', """
-000000000000000000000000
-000000000000000000000000
-000011000011000000000000
-000131100131100000000000
-001333331333310000000000
-001333333333311111000000
-001313333313333333100000
-001333333333333333310000
-001332333333333333310000
-000133333333333333310000
-000013333333333333310000
-000001333333333333310000
-000000133333333333100000
-000000013333333331000000
-000000001111111110000000
-000000000000000000000000
-""", 3)
-# Cloverana, 16x24: purple hat with light blue band, light blue face, purple dress
-block('T_WITCH', """
-0000000010000000
-0000000122000000
-0000001222100000
-0000012222210000
-0000122222221000
-0001222222222100
-0012222222222210
-0133333333333331
-1222222222222221
-0113333333331100
-0001333333310000
-0001313333130000
-0001333333310000
-0000133333100000
-0000013331000000
-0000122222100000
-0001222222210000
-0012222222221000
-0012222222221000
-0122222222222100
-0122222222222100
-0001110000111000
-0001110000111000
-0000000000000000
-""", 2)
 # --- title screen: palette P1 (black, green, light green, white) vines & flowers; P0 (black, yellow, olive, white) big letters
 T('T_VINE_H', """
 ........
@@ -590,26 +630,111 @@ for x in (2, 5, 14, 17): put(x, 1, 'T_WINDOW', P_HUD)
 for y in range(3, 15):
     for x in list(range(0, 4)) + list(range(16, 20)):
         put(x, y, 'T_GRASS', P_DECO)
-def tree(x, y):
-    put(x, y, 'T_TREE0', P_DECO); put(x+1, y, 'T_TREE1', P_DECO)
-    put(x, y+1, 'T_TREE2', P_DECO); put(x+1, y+1, 'T_TREE3', P_DECO)
-tree(0, 3); tree(2, 4); tree(0, 12); tree(2, 13)
-tree(16, 3); tree(18, 4); tree(16, 12); tree(18, 13)
-# cat at left (cols 0-2, rows 8-9); bubble dots drawn at runtime on row 7 cols 0-4? (we use bottom HUD instead)
-for i in range(3): put(i, 8, 'T_CAT%d' % i, P_DECO); put(i, 9, 'T_CAT%d' % (i+3), P_DECO)
-# witch at right (cols 17-18, rows 7-9)
-for i in range(3): put(17, 7+i, 'T_WITCH%d' % (2*i), P_DECO); put(18, 7+i, 'T_WITCH%d' % (2*i+1), P_DECO)
+# composed sidebars (cols 0-3 and 16-19, rows 3-14) -> tiles in VRAM bank 1 (attribute bit 3)
+side_tiles = []; side_index = {}
+def side_tile(r8):
+    k = tuple(r8)
+    if k not in side_index: side_index[k] = len(side_tiles); side_tiles.append(list(r8))
+    return side_index[k]
+for x0, trees, tufts in ((0, SIDE_TREES_L, SIDE_TUFTS_L), (16, SIDE_TREES_R, SIDE_TUFTS_R)):
+    img = compose_side(trees, tufts)
+    for ty in range(12):
+        for tx in range(4):
+            r8 = [''.join(img[ty*8+k][tx*8:tx*8+8]) for k in range(8)]
+            tmap[3+ty][x0+tx] = side_tile(r8); amap[3+ty][x0+tx] = P_DECO | 0x08
+assert len(side_tiles) <= 256, len(side_tiles)
 # playfield cols 4-15 rows 3-14: floor checker (palettes 0/1), overwritten at runtime
 for y in range(12):
     for x in range(12):
         put(4+x, 3+y, 'T_FLOOR', (x + y) & 1)
-# bottom HUD rows 15-17: pink panel
-for x in range(W):
-    for y in range(15, 18): put(x, y, 'T_PANEL', P_HUD)
-def text(x, y, s):
-    for i, ch in enumerate(s): put(x+i, y, 'T_FONT_' + str(ord(ch)), P_HUD)
-text(1, 15, 'SAVED'); text(12, 15, 'SCORE')
-for i in range(5): put(7+i, 17, 'T_DOT_OFF', P_HUD)
+# bottom HUD rows 15-17 (palette 7: 0 dark, 1 grey, 2 white, 3 plaque/liquid colour, which render.c
+# switches to a new flask's colour while it is on its way): the original's two plaques on a dark ledge,
+# "Saved" / "Score" in a small script, tall digits, and a flask meter between them.
+# Everything is composed as a 160x24 picture and cut into tiles in VRAM bank 1 (with the grove).
+def hud_blit(cv, art, x, y):
+    for j, r in enumerate(art):
+        for i, ch in enumerate(r):
+            if ch != '.' and 0 <= y + j < len(cv) and 0 <= x + i < len(cv[0]): cv[y + j][x + i] = ch
+def plaque(cv, x0, x1):
+    """dark outline, white inner line, rounded top corners, runs off the bottom of the screen"""
+    for y in range(24):
+        for x in range(x0, x1):
+            dx = min(x - x0, x1 - 1 - x)
+            if (y == 0 and dx < 2) or (y == 1 and dx < 1): continue
+            edge = y == 0 or dx == 0 or (y == 1 and dx == 1)
+            inner = (y == 1 or dx == 1 or (y == 2 and dx == 2)) and not edge
+            cv[y][x] = '0' if edge else ('2' if inner else '3')
+    curl = [".00.", "0..0", "0.00", "0..."]
+    hud_blit(cv, curl, x0 + 3, 3); hud_blit(cv, [r[::-1] for r in curl], x1 - 7, 3)
+SCRIPT = {  # label letters, 6 rows
+ 'S': [".000.", "0....", ".00..", "...0.", "...0.", "000.."],
+ 'a': [".....", ".....", ".000.", "0..0.", "0..0.", ".00.0"],
+ 'v': [".....", ".....", "0...0", "0...0", ".0.0.", "..0.."],
+ 'e': [".....", ".....", ".00..", "0.00.", "00...", ".000."],
+ 'd': ["...0.", "...0.", ".000.", "0..0.", "0..0.", ".00.0"],
+ 'c': [".....", ".....", ".00..", "0....", "0....", ".000."],
+ 'o': [".....", ".....", ".00..", "0..0.", "0..0.", ".00.."],
+ 'r': [".....", ".....", "0.00.", "00...", "0....", "0...."],
+}
+def script(cv, word, x, y):
+    for ch in word:
+        hud_blit(cv, SCRIPT[ch], x, y); x += len(SCRIPT[ch][0])
+def tall_digit(d):
+    """the 5x7 font doubled vertically, white with a dark outline: 7x16"""
+    art = [['.'] * 7 for _ in range(16)]
+    for j, row in enumerate(FONT[str(d)]):
+        for i, b in enumerate(row):
+            if b == '1': art[1 + 2*j][1 + i] = art[2 + 2*j][1 + i] = '2'
+    out = [r[:] for r in art]
+    for y in range(16):
+        for x in range(7):
+            if art[y][x] == '.' and any(0 <= y+dy < 16 and 0 <= x+dx < 7 and art[y+dy][x+dx] == '2'
+                                        for dx in (-1, 0, 1) for dy in (-1, 0, 1)):
+                out[y][x] = '0'
+    return [''.join(r) for r in out]
+HUD_FLASK = [
+ "......0000......", ".....011110.....", "......0220......", "......0220......", ".....022220.....",
+ "....02222220....", "...0222222220...", "..022222222220..", "..022222222220..", ".02222222222220.",
+ ".02222222222220.", ".02222222222220.", "..022222222220..", "...0222222220...", "....00000000....",
+ "................"]
+def hud_flask(level):   # 0-5 saved toward the next flask, 6 = a flask is made; the liquid is colour 3
+    a = [list(r) for r in HUD_FLASK]
+    top = 13 - [0, 2, 4, 6, 8, 9, 10][level]
+    for y in range(top + 1, 14):
+        for x in range(16):
+            if a[y][x] == '2': a[y][x] = '3'
+    a[9][3] = a[10][3] = a[8][4] = '2'   # glint
+    return [''.join(r) for r in a]
+def cut(cv, tx, ty):
+    return [''.join(cv[ty*8 + k][tx*8:tx*8 + 8]) for k in range(8)]
+hud = [['0'] * 160 for _ in range(24)]
+plaque(hud, 0, 48); plaque(hud, 80, 160)
+script(hud, 'Saved', 13, 2); script(hud, 'Score', 106, 2)
+# dynamic tiles, each set consecutive in bank 1: tall digits (10 tops, then 10 bottoms) on the plaque colour,
+# then the flask meter, 7 states x 4 tiles (top-left, top-right, bottom-left, bottom-right)
+B1_DIGIT = len(side_tiles)
+for half in (0, 1):
+    for d in range(10):
+        cell = [['3'] * 8 for _ in range(16)]
+        hud_blit(cell, tall_digit(d), 0, 0)
+        side_tiles.append([''.join(r) for r in cell[half*8:half*8 + 8]])
+B1_FLASK = len(side_tiles)
+for lv in range(7):
+    cell = [['0'] * 16 for _ in range(16)]
+    hud_blit(cell, hud_flask(lv), 0, 0)
+    for ty, tx in ((0, 0), (0, 1), (1, 0), (1, 1)): side_tiles.append(cut(cell, tx, ty))
+for ty in range(3):
+    for tx in range(20):
+        tmap[15 + ty][tx] = side_tile(cut(hud, tx, ty)); amap[15 + ty][tx] = P_HUD | 0x08
+for i, d in enumerate((0, 0, 0)):                       # SAVED digits cols 2-4, SCORE cols 11-18, rows 16-17
+    tmap[16][2 + i] = B1_DIGIT + d; tmap[17][2 + i] = B1_DIGIT + 10 + d
+for i in range(8):
+    tmap[16][11 + i] = B1_DIGIT; tmap[17][11 + i] = B1_DIGIT + 10
+for k, (ty, tx) in enumerate(((0, 0), (0, 1), (1, 0), (1, 1))):   # flask meter cols 7-8, rows 15-16
+    tmap[15 + ty][7 + tx] = B1_FLASK + k
+for x in (7, 8, 9):                                     # multiplier "x2" in the bank-0 font, row 17
+    put(x, 17, 'T_BLACK', P_HUD)
+assert len(side_tiles) <= 256, len(side_tiles)
 
 # ------------------------------------------------------------------ title map (20x18)
 ttmap = [[names['T_BLACK']] * W for _ in range(H)]
@@ -648,6 +773,8 @@ h.append(f'#define FONT_FIRST {BG_BASE + font_first}')
 h.append(f'#define BIG_FIRST {BG_BASE + big_first}')
 h.append('#define FONT_ORDER "' + FONT_ORDER.replace('\\', '\\\\').replace('"', '\\"') + '"')
 h += ['', 'extern const uint8_t spr_tiles[];', 'extern const uint8_t bg_tiles[];',
+      'extern const uint8_t side_tiles[];', f'#define SIDE_TILE_COUNT {len(side_tiles)}',
+      f'#define B1_DIGIT {B1_DIGIT}', f'#define B1_FLASK {B1_FLASK}',
       'extern const uint8_t frame_map[20*18];', 'extern const uint8_t frame_attr[20*18];',
       'extern const uint8_t title_map[20*18];', 'extern const uint8_t title_attr[20*18];', '', '#endif']
 open(os.path.join(ROOT, 'include', 'gfx_data.h'), 'w').write('\n'.join(h) + '\n')
@@ -664,9 +791,11 @@ bgd = []
 for n, r in bg: bgd += tile2bpp(r)
 c = ['// Generated by tools/make_art.py - do not edit', '#pragma bank 1', '#include <stdint.h>', '#include "gfx_data.h"', '',
      carr('spr_tiles', spr), '', carr('bg_tiles', bgd), '',
+     carr('side_tiles', [b for r8 in side_tiles for b in tile2bpp(r8)]), '',
      carr('frame_map', [t for row in tmap for t in row]), '',
      carr('frame_attr', [a for row in amap for a in row]), '',
      carr('title_map', [t for row in ttmap for t in row]), '',
      carr('title_attr', [a for row in tamap for a in row])]
 open(os.path.join(ROOT, 'src', 'gfx_data.c'), 'w').write('\n'.join(c) + '\n')
-print(f'sprite tiles: {2*len(sprite_tiles)}  bg tiles: {len(bg)}  BG_BASE={BG_BASE}  total={BG_BASE+len(bg)}')
+print(f'sprite tiles: {2*len(sprite_tiles)}  bg tiles: {len(bg)}  BG_BASE={BG_BASE}  total={BG_BASE+len(bg)}  side tiles (VRAM bank 1): {len(side_tiles)}')
+assert BG_BASE + len(bg) <= 256

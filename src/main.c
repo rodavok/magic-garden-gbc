@@ -29,6 +29,7 @@ void main(void) {
     LCDC_REG = LCDCF_BG8000 | LCDCF_BGON;   /* LCD off, BG map at 0x9800, tiles at 0x8000, sprites off */
     set_sprite_data(0, SPR_TILE_COUNT, spr_tiles);
     set_sprite_data(BG_BASE, BG_TILE_COUNT, bg_tiles);
+    VBK_REG = 1; set_sprite_data(0, SIDE_TILE_COUNT, side_tiles); VBK_REG = 0;   /* sidebar grove (attr bit 3) */
     fill_bkg_rect(0, 0, 32, 32, T_BLACK);
     VBK_REG = 1; fill_bkg_rect(0, 0, 32, 32, 7); VBK_REG = 0;
     { uint8_t i; for (i = 0; i < 40; i++) { set_sprite_tile(i, 0); set_sprite_prop(i, 0); move_sprite(i, 0, 0); } }

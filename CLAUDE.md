@@ -83,10 +83,18 @@ Never run the PyBoy tests while `make` is still writing the ROM: they read a hal
   in seven) or channel 4. Only death and the win fanfare use channel 1, and the track is ending by then.
   Channel 2 has no hardware sweep, so `sfx_update()` walks the frequency itself once a frame, writing
   pitch without the restart bit; it clamps at a ceiling instead of sweeping into an overflow silence.
-- Palette budget: BG 0/1 friendly on floor A/B, 2/3 angry+mushroom, 4/5 star pad, 6 decoration
-  (ground, black, purple, light blue), 7 HUD. OBJ 0 player, 1-4 flasks, 5 shadow, 6 red oppie/pop-ups, 7 blue oppie.
-- Sprite slots: 0 player (8x16, head overhangs the cell above), 1 unused, 2 shadow, 3-8 hopping enemies,
-  9-14 flasks, 15-32 pop-ups (3 objects each, only as many shown as the value needs).
+- Palette budget: BG 0/1 friendly on floor A/B, 2/3 angry+mushroom, 4/5 star pad, 6 sidebar grove
+  (ground, blue rim/skirt, tree colour, eyes; tree colour follows the rank), 7 back wall + bottom HUD (dark,
+  brick grey, white, plaque colour: entry 3 is pink, or a new flask's colour while it is on its way). OBJ 0 player and jump
+  shadow, 1-4 flasks, 5 cat, 6 witch, 7 blue oppie and score pop-ups (pop-ups only draw colour 2, white).
+  The title screen loads its own OBJ set with the red oppie in 6.
+- Sprite slots: 0 player (8x16, 14 px tall, head overhangs the cell above), 1 unused, 2 shadow, 3-8 hopping
+  enemies, 9-14 flasks, 15-32 pop-ups (3 objects each, only as many shown as the value needs), 33-35 cat,
+  36-39 witch (cat is 24 px wide: 3 objects). The sidebar characters take the lowest-priority slots and never share a scanline.
+- Tiles: sprites and BG share VRAM bank 0 (0x8000, 256 tiles; make_art.py asserts the total). The sidebar
+  grove and the bottom HUD (plaques, tall digits `B1_DIGIT`, flask meter `B1_FLASK`) are composed in
+  make_art.py and cut into tiles in VRAM bank 1 (attribute bit 3). The HUD flush is straight `memcpy` into
+  the tile map (attributes are static); anything that overwrites rows 15-17 restores them from `frame_map`.
 - Score is `uint32` end to end (state, SRAM, HUD, high-score table) and displays 8 digits, so it is exact to
   99,999,999. A kill award is `(10 + 10 x kills) x multiplier` in 32-bit: the multiplier stacks across flasks
   picked up while power is still running, so awards reach five digits. Pop-ups render up to 6 digits.
@@ -121,7 +129,10 @@ Never run the PyBoy tests while `make` is still writing the ROM: they read a hal
 
 Playable core on the original rules; title with menu, hoppers and high-score screen; battery-backed high
 scores and stats; ending with dialogue and credits; cascading drop-off with pop-ups; death bump; start
-hint; four auto-transcribed music tracks with sound effects; verified in SameBoy, mGBA and John GBC.
+hint; four auto-transcribed music tracks with sound effects; chibi gardener; sidebar grove like the original
+(trees with faces, a cat that yawns awake when a flask is made, Cloverana zapping while a mushroom
+grows and jumping when you die); bottom HUD as the original's plaques with a flask meter;
+verified in SameBoy, mGBA and John GBC.
 
 ## Remaining features (backlog)
 
@@ -135,7 +146,7 @@ hint; four auto-transcribed music tracks with sound effects; verified in SameBoy
 2. Sound effects closer to the originals (sfx_special02 on flask, the 150/100/50 ticks, witch cackle)
 3. Ending polish: the witch walking in beside the Gardener, a happy sprite, the original's credit roll timing
 4. Palette fade on transitions
-5. Witch animation when she spawns mushrooms; richer appear/stun frames; flash hop sprites while powered
+5. Richer appear/stun frames; flash hop sprites while powered; the cat's slow breathing
 6. Clear effect frames on the cascading drop-off (FollowClear animation)
 7. The original game-over flow (60-frame bump, then the UFO 50 frame's GAME OVER card)
 8. Easter eggs ("I LOVE JESCA!" after inactivity, running in circles) and the OVER-GROW cheat; tutorial

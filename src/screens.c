@@ -170,5 +170,7 @@ void start_game(void) {
 
 
 void clear_hint_row(void) {
-    uint8_t row[20]; memset(row, T_PANEL, 20); set_bkg_tiles(0, 17, 20, 1, row); hint_shown = 0; G.hud_dirty = 1;
+    set_bkg_tiles(0, 17, 20, 1, frame_map + 17 * 20);   /* the plaques, then the HUD redraws its digits */
+    VBK_REG = 1; set_bkg_tiles(0, 17, 20, 1, frame_attr + 17 * 20); VBK_REG = 0;
+    hint_shown = 0; G.hud_dirty = 1;
 }

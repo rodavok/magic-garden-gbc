@@ -7,7 +7,10 @@
 static uint8_t cur_set = 0xFF;
 #define MAX_ROWS_PER_FRAME 4
 static uint8_t rowbuf_t[MAX_ROWS_PER_FRAME][GW], rowbuf_a[MAX_ROWS_PER_FRAME][GW], rowbuf_y[MAX_ROWS_PER_FRAME], n_rows;
-static uint8_t hud_ready, hud_saved[3], hud_score[8], hud_dots[5], hud_timer[2], hud_mult[3], pal_pending;
+static uint8_t hud_ready, hud_saved[6], hud_score[16], hud_flask[4], hud_timer[2], hud_mult[3], pal_pending;
+static uint8_t meter_last, hud_col_want, hud_col_have;
+/* plaque + flask-liquid colour (BG palette 7 entry 3): pink, or the colour of a flask on its way */
+static const uint16_t hud_colors[5] = { RGB8(254,98,110), RGB8(254,98,110), RGB8(164,240,34), RGB8(39,186,219), RGB8(232,234,74) };
 
 static uint8_t font_tile(char ch) {
     if (ch >= '0' && ch <= '9') return FONT_FIRST + (ch - '0');
@@ -60,13 +63,54 @@ void hud_number(uint8_t x, uint8_t y, uint32_t v, uint8_t digits) {
     set_bkg_tiles(x, y, digits, 1, buf);
 }
 
+/* Sidebar characters live in the last object slots (the lowest priority: if a line ever holds more than
+   ten objects they drop out, never a gameplay sprite). The cat and the witch never share a scanline. */
+#define SLOT_CAT   33
+#define SLOT_WITCH 36
+#define CAT_X 4
+#define CAT_Y 67
+#define WITCH_X 136
+#define WITCH_Y 30
+static uint8_t witch_frame, witch_tick, cat_frame;
+/* The cat yawns awake while a new flask is on its way (potion_delay: made, not yet dropped in). */
+static void draw_cat(void) {
+    uint8_t f = G.potion_delay ? 1 : 0, k, t;
+    if (f == cat_frame) return;
+    cat_frame = f;
+    t = f ? SPR_CAT_YAWN0 : SPR_CAT0;
+    for (k = 0; k < 3; k++, t += 2) set_sprite_tile(SLOT_CAT + k, t);
+}
+/* The original's bgWitch: she zaps (two frames, 10 each) while a mushroom grows and jumps for joy when the
+   gardener dies. The appear list is at most 12 entries, and tiles are only rewritten when the frame changes. */
+static void draw_witch(void) {
+    uint8_t f = 0, k, t;
+    if (++witch_tick >= 20) witch_tick = 0;
+    if (G.state == PS_DEAD) f = 3;
+    else for (k = 0; k < G.n_appear; k++) if (G.grid[G.appear_list[k]] == C_APPEAR_MUSH) { f = 1; break; }
+    if (f && witch_tick >= 10) f++;
+    if (f == witch_frame) return;
+    witch_frame = f;
+    t = SPR_WITCH0_0 + (f << 3);
+    for (k = 0; k < 4; k++, t += 2) set_sprite_tile(SLOT_WITCH + k, t);
+}
+
 void render_init(void) {
     uint8_t i;
     SPRITES_8x16;
     for (i = 0; i < 40; i++) { set_sprite_tile(i, 0); move_sprite(i, 0, 0); }
     vram_draw_map(frame_map, frame_attr);
     set_sprite_prop(0, 0);
-    set_sprite_tile(2, SPR_SHADOW); set_sprite_prop(2, 5);
+    set_sprite_tile(2, SPR_SHADOW); set_sprite_prop(2, 0);   /* the gardener's dark purple */
+    for (i = 0; i < 3; i++) {                                  /* sleeping cat, left grove */
+        set_sprite_tile(SLOT_CAT + i, SPR_CAT0 + i * 2); set_sprite_prop(SLOT_CAT + i, 5);
+        move_sprite(SLOT_CAT + i, CAT_X + i * 8 + 8, CAT_Y + 16);
+    }
+    for (i = 0; i < 4; i++) {                                  /* Cloverana, right grove */
+        set_sprite_prop(SLOT_WITCH + i, 6);
+        move_sprite(SLOT_WITCH + i, WITCH_X + (i & 1) * 8 + 8, WITCH_Y + (i & 2) * 8 + 16);
+    }
+    witch_frame = 0xFF; cat_frame = 0;
+    meter_last = 0; hud_col_want = 0; hud_col_have = 0xFF;
     cur_set = 0xFF;
     G.hud_dirty = 1;
 }
@@ -232,7 +276,7 @@ static void draw_sprites(void) {
         py = ORG_Y + p->y * 8 + 16 - (uint8_t)((60 - p->t) >> 2);
         for (j = 0; j < 3; j++, n++) {
             if (j >= w) { move_sprite(n, 0, 0); continue; }
-            set_sprite_tile(n, SPR_POP0 + i * 6 + j * 2); set_sprite_prop(n, 6); move_sprite(n, px + j * 8, py);
+            set_sprite_tile(n, SPR_POP0 + i * 6 + j * 2); set_sprite_prop(n, 7); move_sprite(n, px + j * 8, py);
         }
     }
 
@@ -248,11 +292,22 @@ static void digits(uint8_t *out, uint32_t v, uint8_t n) {
         *out++ = FONT_FIRST + d;
     }
 }
+/* tall two-tile digits (bank 1): tops in out[0..n), bottoms in out[n..2n) */
+static void tall_digits(uint8_t *out, uint32_t v, uint8_t n) {
+    uint8_t k, d, *bot = out + n;
+    for (k = 8 - n; k < 8; k++) {
+        uint32_t p = pow10[k];
+        for (d = B1_DIGIT; v >= p && d < B1_DIGIT + 9; d++) v -= p;
+        *out++ = d; *bot++ = d + 10;
+    }
+}
+static uint8_t meter_state(void) { return G.potion_delay ? 6 : (G.flask_counter > 5 ? 5 : G.flask_counter); }
 static void hud_prepare(void) {
-    uint8_t i;
-    digits(hud_saved, G.saved, 3);
-    digits(hud_score, G.score, 8);
-    for (i = 0; i < 5; i++) hud_dots[i] = (i < G.flask_counter) ? T_DOT_ON : T_DOT_OFF;
+    uint8_t i, f;
+    tall_digits(hud_saved, G.saved, 3);
+    tall_digits(hud_score, G.score, 8);
+    f = B1_FLASK + (meter_state() << 2);
+    for (i = 0; i < 4; i++) hud_flask[i] = f + i;
     if (G.power_timer) {
         digits(hud_timer, (G.power_timer + 9) / 10, 2);
         if (G.mult > 1) {
@@ -260,19 +315,23 @@ static void hud_prepare(void) {
             while (m >= 10) { m -= 10; tens++; }
             hud_mult[0] = font_tile('x');
             if (tens) { hud_mult[1] = FONT_FIRST + tens; hud_mult[2] = FONT_FIRST + m; }
-            else { hud_mult[1] = FONT_FIRST + m; hud_mult[2] = T_PANEL; }
-        } else hud_mult[0] = hud_mult[1] = hud_mult[2] = T_PANEL;
-    } else { hud_timer[0] = hud_timer[1] = T_BRICK; hud_mult[0] = hud_mult[1] = hud_mult[2] = T_PANEL; }
+            else { hud_mult[1] = FONT_FIRST + m; hud_mult[2] = T_BLACK; }
+        } else hud_mult[0] = hud_mult[1] = hud_mult[2] = T_BLACK;
+    } else { hud_timer[0] = hud_timer[1] = T_BRICK; hud_mult[0] = hud_mult[1] = hud_mult[2] = T_BLACK; }
     hud_ready = 1;
 }
 static void hud_flush(void) {
     if (!hud_ready) return;
     hud_ready = 0;
-    set_bkg_tiles(2, 16, 3, 1, hud_saved);
-    set_bkg_tiles(10, 16, 8, 1, hud_score);
-    set_bkg_tiles(7, 17, 5, 1, hud_dots);
-    set_bkg_tiles(9, 1, 2, 1, hud_timer);
-    set_bkg_tiles(13, 17, 3, 1, hud_mult);
+    /* straight copies into the tile map (attributes are static): 31 tiles, well inside VBlank */
+    memcpy((uint8_t *)(0x9800 + 16 * 32 + 2), hud_saved, 3);
+    memcpy((uint8_t *)(0x9800 + 17 * 32 + 2), hud_saved + 3, 3);
+    memcpy((uint8_t *)(0x9800 + 16 * 32 + 11), hud_score, 8);
+    memcpy((uint8_t *)(0x9800 + 17 * 32 + 11), hud_score + 8, 8);
+    memcpy((uint8_t *)(0x9800 + 15 * 32 + 7), hud_flask, 2);
+    memcpy((uint8_t *)(0x9800 + 16 * 32 + 7), hud_flask + 2, 2);
+    memcpy((uint8_t *)(0x9800 + 1 * 32 + 9), hud_timer, 2);
+    memcpy((uint8_t *)(0x9800 + 17 * 32 + 7), hud_mult, 3);
 }
 void hud_draw_all(void) { hud_prepare(); wait_vbl_done(); hud_flush(); G.hud_dirty = 0; }
 
@@ -307,7 +366,14 @@ static void compose_pop(uint8_t k) {
 /* Phase 1 (any time in the frame): compute everything, touch only shadow OAM and RAM buffers. */
 void render_prepare(void) {
     if (cur_set != G.palette_set) { cur_set = G.palette_set; pal_pending = 1; }
+    if (G.state == PS_PLAY) {   /* the flask meter fills, then shows a made flask full in its colour */
+        uint8_t m = meter_state();
+        if (m != meter_last) { meter_last = m; G.hud_dirty = 1; }
+        hud_col_want = G.potion_delay ? 1 + G.potion_type : 0;
+    }
     draw_sprites();
+    draw_witch();
+    draw_cat();
     /* both are 32-bit decimal conversions: at most one per frame, the HUD waits a frame for a pop-up */
     if (G.pop_dirty && pop_pending == 0xFF) {
         uint8_t k;
@@ -317,7 +383,8 @@ void render_prepare(void) {
 }
 /* Phase 2 (right after wait_vbl_done): VRAM + palette writes only. */
 void render_flush(void) {
-    if (pal_pending) { pal_pending = 0; palettes_apply(cur_set); }
+    if (pal_pending) { pal_pending = 0; palettes_apply(cur_set); hud_col_have = 0xFF; }
+    if (hud_col_want != hud_col_have) { hud_col_have = hud_col_want; set_bkg_palette_entry(7, 3, hud_colors[hud_col_want]); }
     if (pop_pending != 0xFF) { set_sprite_data(SPR_POP0 + pop_pending * 6, 6, popbuf); pop_pending = 0xFF; }
     flush_rows();
     hud_flush();
