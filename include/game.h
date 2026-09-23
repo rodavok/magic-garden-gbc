@@ -31,7 +31,9 @@
 #define ENEMY_SPAWN      240  /* passive angry spawn period (paused while a flask is active) */
 #define PAD_LIFE         960  /* star pad lifetime; expiring unused summons mushrooms */
 #define PAD_FLASH        40   /* pad flash after a save before the next pad appears */
-#define PAD_TWINKLE      20
+#define PAD_WARN         120  /* the last frames of a pad's life, when it starts to flash */
+#define PAD_BLINK        20   /* frames per flash phase while it is about to expire */
+#define PAD_BLINK_SAVE   5    /* frames per flash phase after a save */
 #define POTION_DELAY     60   /* frames from the save until the flask drops in */
 #define POTION_FALL      90   /* units the flask falls before it can be picked up */
 #define FLASK_NEEDED     6
@@ -85,7 +87,8 @@ typedef struct {
     uint16_t pad_life;
     uint8_t pad_flash;         /* frames of victory flash left (pad no longer counts) */
     uint8_t pad_last_size;
-    uint8_t pad_anim;
+    uint8_t pad_anim;          /* frames into the current PAD_BLINK period, counted from the pad's creation */
+    uint8_t pad_invert;        /* flash phase: the pad draws inverted (white cell, green star) */
 
     uint16_t saved;
     uint32_t score;
@@ -110,6 +113,10 @@ typedef struct {
 } game_t;
 
 extern game_t G;
+/* cell index -> column / row (the frame path must not divide: SDCC's 8-bit divide is a slow library call) */
+extern const uint8_t cell_x[NCELLS], cell_y[NCELLS];
+/* cells of the oppies drawn as hop sprites, collected by the enemy update so the renderer need not scan */
+extern uint8_t hop_cells[MAX_HOP_SPRITES], n_hop_cells;
 
 void game_init(void);
 void game_update(uint8_t joy, uint8_t pressed);

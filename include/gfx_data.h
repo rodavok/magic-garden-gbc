@@ -42,7 +42,7 @@
 #define BG_BASE 70
 #define T_FLOOR 70
 #define T_STAR 71
-#define T_STAR2 72
+#define T_STAR_INV 72
 #define T_OPPIE 73
 #define T_OPPIE_HAPPY 74
 #define T_OPPIE_LOOK_L 75

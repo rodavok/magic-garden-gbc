@@ -178,16 +178,16 @@ cccccccc
 .cccccc.
 ........
 """
-T('T_STAR2', """
-........
-...w....
-..www...
-.wwwww..
-..www...
-...w....
-........
-........
-""")
+T('T_STAR_INV', """
+www.wwww
+www.wwww
+w.....ww
+ww...www
+ww...www
+w.www.ww
+wwwwwwww
+wwwwwwww
+""")   # T_STAR inverted: the original's second FloorStar frame, shown only while the pad flashes
 T('T_OPPIE', OPPIE)
 T('T_OPPIE_HAPPY', """
 ..cccc..

@@ -13,6 +13,7 @@ make run                  # open in mGBA (~/.local/opt/mgba.appimage)
 python3 tools/make_art.py # regenerate src/gfx_data.c + include/gfx_data.h after editing pixel art
 ~/.local/opt/pyboy-venv/bin/python tools/sim_test.py    # 22 rule checks (poke grid via RAM) - run after any rules change
 ~/.local/opt/pyboy-venv/bin/python tools/perf_test.py   # one update per frame + scanline timing
+~/.local/opt/pyboy-venv/bin/python tools/stress_test.py build/magicgarden.gbc 64 48 [play|power|drop]   # full field: 0 skipped frames expected
 ~/.local/opt/pyboy-venv/bin/python tools/autopilot.py   # bot plays a minute; screenshots in build/auto
 SAMEBOY_BOOT=~/.local/opt/SameBoy-1.0.3/build/bin/BootROMs/cgb_boot.bin ./tools/sameboy/dump build/magicgarden.gbc "230,5:start,40,5:down,600" build/sameboy/x   # accurate headless run: PPM frames + PPU/palette/tilemap dump per step
 SAMEBOY_WAV=build/sameboy/out.wav SAMEBOY_BOOT=... ./tools/sameboy/dump ...                 # same, also records the audio
@@ -54,8 +55,12 @@ Never run the PyBoy tests while `make` is still writing the ROM: they read a hal
   Never switch the LCD off after boot: emulators such as John GBC drop LCD-off writes.
 - Never call `hud_text()` with an empty string: a zero width underflows to 256 tiles in `set_bkg_tiles`.
 - No per-frame full-grid scans. SDCC sm83 code costs 200-500 cycles per loop iteration; use the entity lists
-  (`angry_list`, `appear_list`, `flask_list`) and `DIRTY_ROW`. No 32-bit division on the frame path
-  (digits are made by repeated subtraction).
+  (`angry_list`, `appear_list`, `flask_list`) and `DIRTY_ROW`. No division, modulo or 16-bit multiply on the
+  frame path, not even 8-bit `i % GW` / `i / GW` (a library call each; use `cell_x[]` / `cell_y[]`): they
+  made the game slow down with 8 enemies. Collision scans the cells around the player, not the angry list;
+  the enemy loop only calls out when a timer hits 0 or ENEMY_LOOK_AT. Tile rows are rebuilt last in the
+  frame and only while LY < ROW_LY_LIMIT (about 15 lines a row); at most one 32-bit decimal conversion
+  (pop-up or HUD) per frame. Check with `tools/stress_test.py` after touching the frame path.
 - Avoid signed casts into inline helpers (SDCC 4.5 miscompiled `cidx((uint8_t)nx, (uint8_t)ny)`); use
   `neighbor()` with unsigned bounds checks.
 - Game logic runs from scanline 2 (or at once if a flush ran late), so PyBoy tests read RAM at frame
@@ -100,7 +105,8 @@ Never run the PyBoy tests while `make` is still writing the ROM: they read a hal
   frozen while a flask is active, reset to 120 idle when it ends. Passive spawn every 240 frames (paused
   during a flask; one spawns as it ends); growth takes 240 frames. Mushrooms grow the same way.
 - Star pads: column 1, column 10, row 1, row 10, or a 4x4 ring / blob at a random spot (no repeat of the
-  last shape); life 960 frames. Expiring unused summons (rank+1) mushrooms and a new pad. A save flashes
+  last shape); life 960 frames. Stars are still: the pad inverts (white cell, green star) every 20 frames in its
+  last 120, and every 5 frames during the 40-frame flash after a save. Expiring unused summons (rank+1) mushrooms and a new pad. A save flashes
   the pad 40 frames, then a new pad appears. Drop (B): every trail oppie is judged at once, then resolved
   one per 10 frames: on the pad it is saved for 10 x trail position, otherwise it becomes an enemy in place.
 - Flasks: counter += saved; at >= 6 the level is min(3, counter-6) and the counter resets; the flask drops

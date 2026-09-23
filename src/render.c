@@ -72,62 +72,67 @@ void render_init(void) {
 }
 
 /* rebuild one playfield row from the grid into the pending row buffers */
+static uint8_t star_t;   /* per frame, set by prepare_grid */
+/* growth stage 0-3 of an appearing cell: (APPEAR_FRAMES - timer) / 60 without a divide */
+static uint8_t appear_stage(uint8_t t) { return t > 180 ? 0 : (t > 120 ? 1 : (t > 60 ? 2 : 3)); }
+/* angry oppie tile by [flash][gstate & 15] (state in bits 0-1, look direction in bits 2-3); a
+   non-sprite hopper draws as idle, and looking right is looking left flipped */
+#define ANGRY_DIR(look, w) T_OPPIE##w, look##w, T_OPPIE##w, T_OPPIE_STUN##w
+static const uint8_t angry_tile[2][16] = {
+    { ANGRY_DIR(T_OPPIE_LOOK_U, ), ANGRY_DIR(T_OPPIE_LOOK_L, ), ANGRY_DIR(T_OPPIE_LOOK_D, ), ANGRY_DIR(T_OPPIE_LOOK_L, ) },
+    { ANGRY_DIR(T_OPPIE_LOOK_U, _W), ANGRY_DIR(T_OPPIE_LOOK_L, _W), ANGRY_DIR(T_OPPIE_LOOK_D, _W), ANGRY_DIR(T_OPPIE_LOOK_L, _W) },
+};
 static void prepare_row(uint8_t y) {
     uint8_t *tb = rowbuf_t[n_rows], *ab = rowbuf_a[n_rows];
-    uint8_t x, i = y * GW;
+    const uint8_t *gp = &G.grid[y * GW], *sp = &G.gstate[y * GW], *tp = &G.gtimer[y * GW];
+    const uint8_t *at = angry_tile[G.flash];
+    uint8_t mush_t = (G.flash && G.power_mush) ? T_MUSH_W : T_MUSH;
+    uint8_t x, par = y & 1;   /* checkerboard: floor palette 0/1 */
     uint16_t pad = G.pad_rows[y];
-    uint8_t pad_visible = G.pad_flash ? ((G.pad_flash / 5) & 1) : 1;
-    uint8_t star_t = (G.pad_anim < PAD_TWINKLE / 2) ? T_STAR : T_STAR2;
     rowbuf_y[n_rows++] = y;
-    for (x = 0; x < GW; x++, i++, pad >>= 1) {
-        uint8_t g = G.grid[i], onstar = (uint8_t)(pad & 1) && pad_visible;
-        uint8_t pal = onstar ? 4 : ((x + y) & 1), blue_add = onstar ? 1 : 2;
-        uint8_t t = onstar ? star_t : T_FLOOR, a = pal;
-        if (g != C_EMPTY) {
-            uint8_t st = G.gstate[i];
-            switch (g) {
-            case C_FRIEND: t = T_OPPIE; break;
-            case C_TRAIL:  t = T_OPPIE_HAPPY; break;
-            case C_CLEARING: t = G.gstate[i] ? T_OPPIE_HAPPY : T_OPPIE; if (!G.gstate[i]) a += blue_add; break;
-            case C_ANGRY:
-                if (A_STATE(st) == A_HOP && (st & A_SPRITE)) break;   /* drawn as a sprite while hopping */
-                a += blue_add;
-                if (A_STATE(st) == A_STUN) t = G.flash ? T_OPPIE_STUN_W : T_OPPIE_STUN;
-                else if (A_STATE(st) == A_LOOK) {
-                    switch (A_DIR(st)) {
-                    case D_UP: t = G.flash ? T_OPPIE_LOOK_U_W : T_OPPIE_LOOK_U; break;
-                    case D_DOWN: t = G.flash ? T_OPPIE_LOOK_D_W : T_OPPIE_LOOK_D; break;
-                    case D_LEFT: t = G.flash ? T_OPPIE_LOOK_L_W : T_OPPIE_LOOK_L; break;
-                    default: t = G.flash ? T_OPPIE_LOOK_L_W : T_OPPIE_LOOK_L; a |= S_FLIPX; break;
-                    }
-                } else t = G.flash ? T_OPPIE_W : T_OPPIE;
-                break;
-            case C_MUSH: a += blue_add; t = (G.flash && G.power_mush) ? T_MUSH_W : T_MUSH; break;
-            case C_APPEAR_ANGRY: {
-                uint8_t lv = (uint8_t)((APPEAR_FRAMES - G.gtimer[i]) / 60);
-                a += blue_add;
-                t = lv == 0 ? T_APPEAR0 : (lv == 1 ? T_APPEAR1 : (lv == 2 ? T_APPEAR2 : T_OPPIE));
-                break; }
-            case C_APPEAR_MUSH: {
-                uint8_t lv = (uint8_t)((APPEAR_FRAMES - G.gtimer[i]) / 60);
-                a += blue_add;
-                t = lv == 0 ? T_APPEAR0 : (lv == 1 ? T_APPEAR1 : (lv == 2 ? T_MUSH_APPEAR : T_MUSH));
-                break; }
-            default: break;
-            }
+    for (x = 0; x < GW; x++, pad >>= 1, par ^= 1) {
+        uint8_t g = *gp++, st = *sp++, tm = *tp++, t, a, blue;
+        if (pad & 1) { t = star_t; a = 4; blue = 5; }   /* star pad: palette 4, angry on it 5 */
+        else { t = T_FLOOR; a = par; blue = par + 2; }
+        switch (g) {
+        case C_EMPTY: break;
+        case C_FRIEND: t = T_OPPIE; break;
+        case C_TRAIL:  t = T_OPPIE_HAPPY; break;
+        case C_CLEARING: if (st) t = T_OPPIE_HAPPY; else { t = T_OPPIE; a = blue; } break;
+        case C_ANGRY:
+            if (A_STATE(st) == A_HOP && (st & A_SPRITE)) break;   /* drawn as a sprite while hopping */
+            a = blue; t = at[st & 15];
+            if ((st & 15) == (A_LOOK | (D_RIGHT << 2))) a |= S_FLIPX;
+            break;
+        case C_MUSH: a = blue; t = mush_t; break;
+        case C_APPEAR_ANGRY: {
+            uint8_t lv = appear_stage(tm);
+            a = blue; t = lv == 0 ? T_APPEAR0 : (lv == 1 ? T_APPEAR1 : (lv == 2 ? T_APPEAR2 : T_OPPIE));
+            break; }
+        case C_APPEAR_MUSH: {
+            uint8_t lv = appear_stage(tm);
+            a = blue; t = lv == 0 ? T_APPEAR0 : (lv == 1 ? T_APPEAR1 : (lv == 2 ? T_MUSH_APPEAR : T_MUSH));
+            break; }
+        default: break;
         }
-        tb[x] = t; ab[x] = a;
+        *tb++ = t; *ab++ = a;
     }
 }
 
-/* pick up to MAX_ROWS_PER_FRAME dirty rows; the rest stay flagged for later frames */
-static void prepare_grid(void) {
+/* A row costs about 15 scanlines, so during play a new one is only started while the logic phase can
+   still finish before VBlank (LY >= 144 means it is already late). The rest stay flagged for later frames. */
+#define ROW_LY_LIMIT 118
+static void prepare_grid(uint8_t budgeted) {
     uint8_t y;
     uint16_t m = G.dirty_rows, bit = 1;
     n_rows = 0;
     if (!m) return;
+    star_t = (G.pad_invert && (G.pad_flash || G.pad_life <= PAD_WARN)) ? T_STAR_INV : T_STAR;
     for (y = 0; y < GH && n_rows < MAX_ROWS_PER_FRAME; y++, bit <<= 1)
-        if (m & bit) { prepare_row(y); G.dirty_rows &= ~bit; }
+        if (m & bit) {
+            if (budgeted && LY_REG >= ROW_LY_LIMIT) break;
+            prepare_row(y); G.dirty_rows &= ~bit;
+        }
 }
 
 /* Straight copies into the tile map during VBlank (GBDK's set_bkg_tiles is several times slower). */
@@ -146,7 +151,7 @@ static void flush_rows(void) {
 /* full redraw in VBlank chunks (used when a game starts) */
 void render_grid_full(void) {
     G.dirty_rows = 0xFFF;
-    while (G.dirty_rows) { prepare_grid(); wait_vbl_done(); flush_rows(); }
+    while (G.dirty_rows) { prepare_grid(0); wait_vbl_done(); flush_rows(); }
 }
 
 /* digits a pop-up value needs (1-6); two digits share an 8 px tile */
@@ -184,7 +189,8 @@ static void draw_sprites(void) {
         tile += anim * 2;
     }
     if (G.z) {
-        lift = G.z / 20;                       /* tenths of a unit -> pixels */
+        uint8_t z = G.z;                       /* tenths of a unit -> pixels: z / 20 without a divide */
+        while (z >= 20) { z -= 20; lift++; }
         move_sprite(2, sx + 8, sy + 8 + 16);   /* shadow at the feet */
     } else move_sprite(2, 0, 0);
     if (G.state == PS_DEAD) {   /* bump: recoil 4 px against the heading, then blink */
@@ -195,28 +201,25 @@ static void draw_sprites(void) {
     if (G.state == PS_DEAD && G.state_timer < 60 && (G.state_timer & 4)) move_sprite(0, 0, 0);
     else { set_sprite_tile(0, tile); set_sprite_prop(0, prop); move_sprite(0, sx + 8, sy + 16 - lift); }
     /* hopping angry oppies */
-    for (i = 0; i < G.n_angry && n < 3 + MAX_HOP_SPRITES; i++) {
-        uint8_t c = G.angry_list[i], st = G.gstate[c];
-        if (A_STATE(st) == A_HOP && (st & A_SPRITE)) {
-            uint8_t hx = ORG_X + (c % GW) * 8, hy = ORG_Y + (c / GW) * 8, back = G.gtimer[c] >> 1;
-            uint8_t arc = G.gtimer[c] < 8 ? G.gtimer[c] : 16 - G.gtimer[c];   /* small hop arc */
-            switch (A_DIR(st)) {
-            case D_UP: hy += back; break;
-            case D_DOWN: hy -= back; break;
-            case D_LEFT: hx += back; break;
-            default: hx -= back; break;
-            }
-            set_sprite_tile(n, SPR_OPPIE); set_sprite_prop(n, 7);
-            move_sprite(n, hx + 8, hy - 8 + 16 - (arc >> 1));
-            n++;
+    for (i = 0; i < n_hop_cells; i++, n++) {
+        uint8_t c = hop_cells[i], st = G.gstate[c];
+        uint8_t hx = ORG_X + (cell_x[c] << 3), hy = ORG_Y + (cell_y[c] << 3), back = G.gtimer[c] >> 1;
+        uint8_t arc = G.gtimer[c] < 8 ? G.gtimer[c] : 16 - G.gtimer[c];   /* small hop arc */
+        switch (A_DIR(st)) {
+        case D_UP: hy += back; break;
+        case D_DOWN: hy -= back; break;
+        case D_LEFT: hx += back; break;
+        default: hx -= back; break;
         }
+        set_sprite_tile(n, SPR_OPPIE); set_sprite_prop(n, 7);
+        move_sprite(n, hx + 8, hy - 8 + 16 - (arc >> 1));
     }
     for (; n < 3 + MAX_HOP_SPRITES; n++) move_sprite(n, 0, 0);
     /* flasks (falling ones are drawn above their cell) */
     for (i = 0; i < G.n_flask; i++, n++) {
         uint8_t c = G.flask_list[i];
         set_sprite_tile(n, SPR_FLASK); set_sprite_prop(n, 1 + G.gstate[c]);
-        move_sprite(n, ORG_X + (c % GW) * 8 + 8, ORG_Y + (c / GW) * 8 - 8 + 16 - (G.flask_fall[i] >> 1));
+        move_sprite(n, ORG_X + (cell_x[c] << 3) + 8, ORG_Y + (cell_y[c] << 3) - 8 + 16 - (G.flask_fall[i] >> 1));
     }
     for (; n < 3 + MAX_HOP_SPRITES + MAX_FLASK; n++) move_sprite(n, 0, 0);
     /* score pop-ups: 3x5 digits, two per 8 px tile, rising for 60 frames */
@@ -304,13 +307,13 @@ static void compose_pop(uint8_t k) {
 /* Phase 1 (any time in the frame): compute everything, touch only shadow OAM and RAM buffers. */
 void render_prepare(void) {
     if (cur_set != G.palette_set) { cur_set = G.palette_set; pal_pending = 1; }
-    prepare_grid();
     draw_sprites();
+    /* both are 32-bit decimal conversions: at most one per frame, the HUD waits a frame for a pop-up */
     if (G.pop_dirty && pop_pending == 0xFF) {
         uint8_t k;
         for (k = 0; k < MAX_POPS; k++) if (G.pop_dirty & (1 << k)) { G.pop_dirty &= (uint8_t)~(1 << k); compose_pop(k); break; }
-    }
-    if (G.hud_dirty) { G.hud_dirty = 0; hud_prepare(); }
+    } else if (G.hud_dirty) { G.hud_dirty = 0; hud_prepare(); }
+    prepare_grid(1);   /* last: it fills whatever time the frame has left */
 }
 /* Phase 2 (right after wait_vbl_done): VRAM + palette writes only. */
 void render_flush(void) {

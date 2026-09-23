@@ -5,13 +5,16 @@
 #include "music.h"
 
 game_t G;
+uint8_t hop_cells[MAX_HOP_SPRITES], n_hop_cells;
 
+#define X12 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
+#define Y12(y) y, y, y, y, y, y, y, y, y, y, y, y
+const uint8_t cell_x[NCELLS] = { X12, X12, X12, X12, X12, X12, X12, X12, X12, X12, X12, X12 };
+const uint8_t cell_y[NCELLS] = { Y12(0), Y12(1), Y12(2), Y12(3), Y12(4), Y12(5), Y12(6), Y12(7), Y12(8), Y12(9), Y12(10), Y12(11) };
 static const uint16_t row_mask[GH] = { 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048 };
 #define DIRTY_ROW(y)   (G.dirty_rows |= row_mask[y])
-#define DIRTY_CELL(i)  DIRTY_ROW((i) / GW)
+#define DIRTY_CELL(i)  DIRTY_ROW(cell_y[i])
 #define cidx(x, y) ((uint8_t)((y) * GW + (x)))
-static const int8_t DX[4] = { 0, 1, 0, -1 };
-static const int8_t DY[4] = { -1, 0, 1, 0 };
 
 /* cell index one step from (x,y) in direction d, or 0xFF when that leaves the grid */
 static uint8_t neighbor(uint8_t x, uint8_t y, uint8_t d) {
@@ -22,8 +25,8 @@ static uint8_t neighbor(uint8_t x, uint8_t y, uint8_t d) {
     default:      return x == GW - 1 ? 0xFF : (uint8_t)(cidx(x, y) + 1);
     }
 }
+static uint8_t flash_ctr, flash_phase, power_tenth;
 static uint8_t rnd(uint8_t n) { return (uint8_t)(rand() % n); }
-static uint8_t on_pad(uint8_t i) { return (uint8_t)((G.pad_rows[i / GW] >> (i % GW)) & 1); }
 
 /* ---- entity lists ---- */
 static void list_remove(uint8_t *list, uint8_t *n, uint8_t cell) {
@@ -105,20 +108,21 @@ static void make_pad(void) {
         }
         break; }
     }
-    G.pad_life = PAD_LIFE; G.pad_flash = 0;
+    G.pad_life = PAD_LIFE; G.pad_flash = 0; G.pad_anim = 0; G.pad_invert = 0;
     G.dirty_rows = 0xFFF;
 }
 
 void game_init(void) {
     uint8_t i;
     for (i = 0; i < NCELLS; i++) { G.grid[i] = C_EMPTY; G.gstate[i] = 0; G.gtimer[i] = 0; }
+    n_hop_cells = 0;
     G.trail_len = 0; G.n_angry = 0; G.n_appear = 0; G.n_flask = 0; G.n_friend = 0; G.hop_sprites = 0;
     G.clear_n = 0; G.clear_k = 0; G.clear_timer = 0;
     for (i = 0; i < MAX_POPS; i++) G.pops[i].t = 0;
     G.pop_dirty = 0;
     G.px = 1; G.py = 1; G.dir = D_RIGHT; G.dir_choice = D_RIGHT; G.sub = 0; G.turned = 0;
     G.z = 0; G.zvel = 0; G.pending_grow = 0; G.drop_anim = 0; G.turn_timer = 0; G.turn_pose = 0;
-    G.pad_last_size = 0xFF; G.pad_anim = 0;
+    G.pad_last_size = 0xFF;
     G.saved = 0; G.score = 0;
     G.flask_counter = 0; G.friend_target = FRIEND_BASE; G.potion_delay = 0; G.potion_type = 0;
     G.power_timer = 0; G.power_mush = 0; G.mult = 1; G.chain = 0;
@@ -150,7 +154,7 @@ static void power_expire(void) {
 static void add_pop(uint8_t cell, uint32_t val) {
     uint8_t k;
     for (k = 0; k < MAX_POPS; k++) if (G.pops[k].t == 0) {
-        G.pops[k].x = cell % GW; G.pops[k].y = cell / GW; G.pops[k].t = 60; G.pops[k].val = val; G.pop_dirty |= (uint8_t)(1 << k); return;
+        G.pops[k].x = cell_x[cell]; G.pops[k].y = cell_y[cell]; G.pops[k].t = 60; G.pops[k].val = val; G.pop_dirty |= (uint8_t)(1 << k); return;
     }
 }
 static void kill_enemy(uint8_t i) {
@@ -170,7 +174,7 @@ static void pickup_flask(uint8_t i) {
     remove_flask(i);
     sfx_flask();
     if (G.power_timer == 0) G.chain = 0;
-    G.power_timer = POWER_FRAMES;
+    G.power_timer = POWER_FRAMES; power_tenth = 0;
     if (level >= 1) G.mult++;
     if (level >= 2) G.power_mush = 1;
     if (level >= 3) { G.friend_target++; spawn_friend(); }
@@ -212,12 +216,16 @@ static void do_drop(void) {
     uint8_t k, nsaved = 0, i;
     G.drop_anim = 16;
     if (G.trail_len == 0 || G.clear_n) return;
-    for (k = 0; k < G.trail_len; k++) {
-        i = G.trail[k];
-        G.gstate[i] = (!G.pad_flash && on_pad(i)) ? 1 : 0;
-        if (G.gstate[i]) nsaved++;
-        set_cell(i, C_CLEARING);
+    {   /* lean loop (no calls): a 48-oppie trail is judged in one frame; every row is redrawn below */
+        uint8_t judge = !G.pad_flash;
+        for (k = 0; k < G.trail_len; k++) {
+            uint8_t s = 0;
+            i = G.trail[k];
+            if (judge && (G.pad_rows[cell_y[i]] & row_mask[cell_x[i]])) { s = 1; nsaved++; }
+            G.gstate[i] = s; G.grid[i] = C_CLEARING;
+        }
     }
+    G.dirty_rows = 0xFFF;
     G.clear_n = G.trail_len; G.clear_k = 0; G.clear_timer = 10;
     G.trail_len = 0;
     G.hud_dirty = 1;
@@ -256,7 +264,7 @@ static void update_clearing(void) {
 
 /* ---- angry oppies: idle 128 (look at 64), hop 16 frames, stun 240; frozen while a flask is active ---- */
 static uint8_t pick_dir(uint8_t i, uint8_t d) {
-    uint8_t x = i % GW, y = i / GW, tries = 4;
+    uint8_t x = cell_x[i], y = cell_y[i], tries = 4;
     while (tries--) {
         uint8_t t = neighbor(x, y, d);
         if (t != 0xFF && G.grid[t] == C_EMPTY) return d;
@@ -264,46 +272,58 @@ static uint8_t pick_dir(uint8_t i, uint8_t d) {
     }
     return D_NONE;
 }
-static uint8_t update_angry(uint8_t i) {
-    uint8_t s = G.gstate[i], st = A_STATE(s), spr = s & A_SPRITE;
+/* an angry oppie's timer just reached t (0 or ENEMY_LOOK_AT); returns its cell, which a hop changes */
+static uint8_t angry_event(uint8_t i, uint8_t s, uint8_t t) {
+    uint8_t *tm = &G.gtimer[i], st = A_STATE(s);
     if (st == A_HOP) {
-        if (--G.gtimer[i] == 0) {
-            if (spr) G.hop_sprites--;
-            G.gstate[i] = A_IDLE; G.gtimer[i] = ENEMY_IDLE; DIRTY_CELL(i);
+        if (t == 0) {
+            if (s & A_SPRITE) G.hop_sprites--;
+            G.gstate[i] = A_IDLE; *tm = ENEMY_IDLE; DIRTY_CELL(i);
         }
         return i;
     }
-    if (G.power_timer) return i;
     if (st == A_STUN) {
-        if (--G.gtimer[i] == 0) { G.gstate[i] = A_IDLE; G.gtimer[i] = ENEMY_IDLE; DIRTY_CELL(i); }
+        if (t == 0) { G.gstate[i] = A_IDLE; *tm = ENEMY_IDLE; DIRTY_CELL(i); }
         return i;
     }
-    if (--G.gtimer[i] == ENEMY_LOOK_AT) {
-        uint8_t d = pick_dir(i, rnd(4));
-        if (d == D_NONE) { G.gtimer[i] = ENEMY_IDLE; return i; }
+    if (t == ENEMY_LOOK_AT) {
+        uint8_t d = pick_dir(i, (uint8_t)(rand() & 3));
+        if (d == D_NONE) { *tm = ENEMY_IDLE; return i; }
         G.gstate[i] = A_LOOK | (d << 2); DIRTY_CELL(i);
         return i;
     }
-    if (G.gtimer[i] == 0) {
-        uint8_t d = pick_dir(i, A_DIR(s)), t;
-        if (d == D_NONE || st != A_LOOK) { G.gstate[i] = A_IDLE; G.gtimer[i] = ENEMY_IDLE; DIRTY_CELL(i); return i; }
-        t = neighbor(i % GW, i / GW, d);
+    {
+        uint8_t d = pick_dir(i, A_DIR(s));
+        if (d == D_NONE || st != A_LOOK) { G.gstate[i] = A_IDLE; *tm = ENEMY_IDLE; DIRTY_CELL(i); return i; }
+        t = neighbor(cell_x[i], cell_y[i], d);
         set_cell(i, C_EMPTY); G.gstate[i] = 0;
         set_cell(t, C_ANGRY); G.gstate[t] = A_HOP | (d << 2); G.gtimer[t] = ENEMY_HOP;
         if (G.hop_sprites < MAX_HOP_SPRITES) { G.gstate[t] |= A_SPRITE; G.hop_sprites++; }
         return t;
     }
-    return i;
 }
 
 static void update_entities(void) {
     uint8_t k, i;
-    for (k = 0; k < G.n_angry; k++) G.angry_list[k] = update_angry(G.angry_list[k]);
+    /* the per-oppie work is a countdown; the rest happens at 0 or ENEMY_LOOK_AT. Frozen (hops excepted)
+       while a flask is active. */
+    {
+        uint8_t frozen = G.power_timer != 0;
+        n_hop_cells = 0;
+        for (k = 0; k < G.n_angry; k++) {
+            uint8_t s, t;
+            i = G.angry_list[k]; s = G.gstate[i];
+            if (frozen && A_STATE(s) != A_HOP) continue;
+            t = --G.gtimer[i];
+            if (t == 0 || t == ENEMY_LOOK_AT) { i = angry_event(i, s, t); G.angry_list[k] = i; s = G.gstate[i]; }
+            if ((s & (A_SPRITE | 3)) == (A_SPRITE | A_HOP) && n_hop_cells < MAX_HOP_SPRITES) hop_cells[n_hop_cells++] = i;
+        }
+    }
     for (k = 0; k < G.n_appear; ) {
         i = G.appear_list[k];
         {
             uint8_t t = --G.gtimer[i];
-            if ((t % 60) == 0) DIRTY_CELL(i);
+            if (t == 180 || t == 120 || t == 60) DIRTY_CELL(i);   /* growth stage changes */
             if (t != 0) { k++; continue; }
         }
         G.appear_list[k] = G.appear_list[--G.n_appear];
@@ -317,6 +337,11 @@ static void update_entities(void) {
     }
 }
 
+static void pad_blink(void) {
+    uint8_t y;
+    G.pad_invert ^= 1;
+    for (y = 0; y < GH; y++) if (G.pad_rows[y]) DIRTY_ROW(y);
+}
 static void update_spawners(void) {
     /* passive angry spawn every 240 frames, paused while a flask is active */
     if (!G.power_timer && G.angry_spawn_timer && --G.angry_spawn_timer == 0) {
@@ -325,60 +350,87 @@ static void update_spawners(void) {
     }
     /* flask drop-in */
     if (G.potion_delay && --G.potion_delay == 0) spawn_flask(G.potion_type);
-    /* star pad life */
+    /* star pad life. The stars are still; as in the original, the pad flashes (inverts) every 20 frames
+       in its last 120, and every 5 frames after a save, starting the frame after it. */
     if (G.pad_flash) {
         if (--G.pad_flash == 0) make_pad();
-        else if ((G.pad_flash % 5) == 0) G.dirty_rows = 0xFFF;
+        else if ((G.pad_flash % PAD_BLINK_SAVE) == PAD_BLINK_SAVE - 1) pad_blink();
     } else if (--G.pad_life == 0) {
         uint8_t n = G.palette_set + 1;   /* 1 mushroom per rank */
         sfx_spawn();
         while (n--) spawn_appear(C_APPEAR_MUSH, 20);
         make_pad();
+    } else if (++G.pad_anim == PAD_BLINK) {
+        G.pad_anim = 0;
+        if (G.pad_life <= PAD_WARN) pad_blink(); else G.pad_invert ^= 1;   /* the phase runs from creation, unseen */
     }
-    if (++G.pad_anim == PAD_TWINKLE) { G.pad_anim = 0; G.dirty_rows = 0xFFF; }
 }
 
-/* ---- per-frame collisions in units: player box [1..14], enemies/mushrooms [4..11], flasks [0..15] ---- */
-static int16_t abs16(int16_t v) { return v < 0 ? -v : v; }
+/* ---- per-frame collisions in units: player box [1..14], enemies/mushrooms [4..11], flasks [0..15] ----
+   All 8-bit: positions carry a one-cell offset so nothing goes negative (at most 208), and two boxes
+   overlap when d = player - other lies in [-lo, hi], which is one unsigned compare. No multiplies or
+   divides: this runs for every angry oppie every frame. */
+#define UPOS(c)       ((uint8_t)(((c) + 1) << 4))
+#define IN(d, lo, hi) ((uint8_t)((uint8_t)(d) + (lo)) <= (uint8_t)((lo) + (hi)))
+#define HIT_ENEMY(dx, dy) (IN(dx, PLAYER_HI - ENEMY_LO, ENEMY_HI - PLAYER_LO) && IN(dy, PLAYER_HI - ENEMY_LO, ENEMY_HI - PLAYER_LO))
+/* player at (ax, ay) against the angry oppie in cell i; 1 if that killed the player */
+static uint8_t touch_angry(uint8_t i, uint8_t ax, uint8_t ay) {
+    uint8_t s = G.gstate[i], st = A_STATE(s), ex = UPOS(cell_x[i]), ey = UPOS(cell_y[i]);
+    if (st == A_HOP) {   /* hoppers use their in-flight position */
+        uint8_t t = G.gtimer[i];
+        switch (A_DIR(s)) {
+        case D_UP:    ey += t; break;
+        case D_DOWN:  ey -= t; break;
+        case D_LEFT:  ex += t; break;
+        default:      ex -= t; break;
+        }
+    }
+    if (G.z) {   /* a pass within 4 units while airborne stuns */
+        if (st != A_STUN && st != A_HOP && IN(ax - ex, 3, 3) && IN(ay - ey, 3, 3)) {
+            G.gstate[i] = A_STUN | (s & A_SPRITE); G.gtimer[i] = STUN_FRAMES; DIRTY_CELL(i);
+        }
+        return 0;
+    }
+    if (HIT_ENEMY(ax - ex, ay - ey)) {
+        if (G.power_timer) { kill_enemy(i); return 0; }
+        die(); return 1;
+    }
+    return 0;
+}
 static uint8_t collide(void) {
-    int16_t ax = (int16_t)G.px * CELL_UNITS + DX[G.dir] * (int16_t)G.sub;
-    int16_t ay = (int16_t)G.py * CELL_UNITS + DY[G.dir] * (int16_t)G.sub;
-    uint8_t k, i;
-    /* angry oppies (hoppers use their in-flight position) */
-    for (k = 0; k < G.n_angry; k++) {
-        uint8_t s; int16_t ex, ey;
-        i = G.angry_list[k]; s = G.gstate[i];
-        ex = (int16_t)(i % GW) * CELL_UNITS; ey = (int16_t)(i / GW) * CELL_UNITS;
-        if (A_STATE(s) == A_HOP) { ex -= DX[A_DIR(s)] * (int16_t)G.gtimer[i]; ey -= DY[A_DIR(s)] * (int16_t)G.gtimer[i]; }
-        if (G.z) {
-            if (abs16(ax - ex) < 4 && abs16(ay - ey) < 4 && A_STATE(s) != A_STUN && A_STATE(s) != A_HOP) {
-                G.gstate[i] = A_STUN | (s & A_SPRITE); G.gtimer[i] = STUN_FRAMES; DIRTY_CELL(i);
-            }
-            continue;
-        }
-        if (ax + PLAYER_HI >= ex + ENEMY_LO && ex + ENEMY_HI >= ax + PLAYER_LO &&
-            ay + PLAYER_HI >= ey + ENEMY_LO && ey + ENEMY_HI >= ay + PLAYER_LO) {
-            if (G.power_timer) { kill_enemy(i); k--; continue; }
-            die(); return 1;
-        }
+    uint8_t ax = UPOS(G.px), ay = UPOS(G.py), i, x, y;
+    /* An oppie is at most 16 units from its cell (mid-hop) and touches within 10, so only cells within
+       26 units of the player matter: one either side, two ahead along the heading. Scanning those
+       instead of the angry list keeps this cost flat however full the field gets. */
+    uint8_t x0 = G.px ? G.px - 1 : 0, x1 = G.px < GW - 1 ? G.px + 1 : GW - 1;
+    uint8_t y0 = G.py ? G.py - 1 : 0, y1 = G.py < GH - 1 ? G.py + 1 : GH - 1;
+    switch (G.dir) {
+    case D_UP:    ay -= G.sub; if (y0) y0--; break;
+    case D_DOWN:  ay += G.sub; if (y1 < GH - 1) y1++; break;
+    case D_LEFT:  ax -= G.sub; if (x0) x0--; break;
+    default:      ax += G.sub; if (x1 < GW - 1) x1++; break;
+    }
+    for (y = y0; y <= y1; y++) {
+        i = cidx(x0, y);
+        for (x = x0; x <= x1; x++, i++)
+            if (G.grid[i] == C_ANGRY && touch_angry(i, ax, ay)) return 1;
     }
     if (G.z) return 0;
     /* mushrooms and flasks in the current and next cell */
-    for (k = 0; k < 2; k++) {
-        int16_t ex, ey;
-        i = k == 0 ? cidx(G.px, G.py) : neighbor(G.px, G.py, G.dir);
+    for (x = 0; x < 2; x++) {
+        uint8_t ex, ey;
+        i = x == 0 ? cidx(G.px, G.py) : neighbor(G.px, G.py, G.dir);
         if (i == 0xFF) continue;
-        ex = (int16_t)(i % GW) * CELL_UNITS; ey = (int16_t)(i / GW) * CELL_UNITS;
+        ex = UPOS(cell_x[i]); ey = UPOS(cell_y[i]);
         if (G.grid[i] == C_MUSH) {
-            if (ax + PLAYER_HI >= ex + ENEMY_LO && ex + ENEMY_HI >= ax + PLAYER_LO &&
-                ay + PLAYER_HI >= ey + ENEMY_LO && ey + ENEMY_HI >= ay + PLAYER_LO) {
+            if (HIT_ENEMY(ax - ex, ay - ey)) {
                 if (G.power_timer && G.power_mush) kill_enemy(i);
                 else { die(); return 1; }
             }
         } else if (G.grid[i] == C_FLASK) {
             uint8_t f;
             for (f = 0; f < G.n_flask; f++) if (G.flask_list[f] == i && G.flask_fall[f] == 0) {
-                if (ax + PLAYER_HI >= ex && ex + 15 >= ax + PLAYER_LO && ay + PLAYER_HI >= ey && ey + 15 >= ay + PLAYER_LO) pickup_flask(i);
+                if (IN(ax - ex, PLAYER_HI, 15 - PLAYER_LO) && IN(ay - ey, PLAYER_HI, 15 - PLAYER_LO)) pickup_flask(i);
                 break;
             }
         }
@@ -392,7 +444,7 @@ static void step_arrive(void) {
     if (G.pending_grow) { G.pending_grow = 0; grew = 1; }
     if (G.z == 0) { uint8_t g2 = 0; if (arrive_cell(ni, &g2)) return; grew |= g2; }
     advance_trail(old, grew);
-    G.px = ni % GW; G.py = ni / GW;
+    G.px = cell_x[ni]; G.py = cell_y[ni];
     if (G.grid[ni] == C_APPEAR_ANGRY || G.grid[ni] == C_APPEAR_MUSH) { set_cell(ni, C_EMPTY); list_remove(G.appear_list, &G.n_appear, ni); }
 }
 
@@ -461,14 +513,15 @@ void game_update(uint8_t joy, uint8_t pressed) {
     update_clearing();
     { uint8_t k; for (k = 0; k < MAX_POPS; k++) if (G.pops[k].t) G.pops[k].t--; }
 
-    /* vulnerable enemies flash blue/white every 6 frames while a flask is active */
+    /* vulnerable enemies flash blue/white every 6 frames while a flask is active (counters, not division) */
+    if (++flash_ctr == 6) { flash_ctr = 0; flash_phase ^= 1; }
     {
-        uint8_t f = G.power_timer ? ((G.frame_count / 6) & 1) : 0;
+        uint8_t f = G.power_timer ? flash_phase : 0;
         if (f != G.flash) { G.flash = f; G.dirty_rows = 0xFFF; }
     }
     if (G.power_timer) {
         if (--G.power_timer == 0) power_expire();
         else if (G.power_timer == 150 || G.power_timer == 100 || G.power_timer == 50) sfx_tick();
-        if ((G.power_timer % 10) == 0) G.hud_dirty = 1;
+        if (++power_tenth == 10) { power_tenth = 0; G.hud_dirty = 1; }   /* the HUD shows tenths of the timer */
     }
 }
