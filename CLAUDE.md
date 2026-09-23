@@ -64,8 +64,12 @@ Never run the PyBoy tests while `make` is still writing the ROM: they read a hal
   (`hUGE_init`, `hUGE_dosound`, `hUGE_mute_channel`) must be wrapped in `SWITCH_ROM(2)` / `SWITCH_ROM(1)`;
   a call with bank 1 mapped executes tile data as code and corrupts RAM. Only bank-0 code may switch banks.
 - Sound: `music_update()` runs in VBlank; sfx.c mutes the driver's channel for the effect's length via
-  `music_sfx_hold()`. hUGE note 0 is C2 (65 Hz). The wave channel plays an octave low for a one-cycle
-  waveform, so bass waves hold two cycles.
+  `music_sfx_hold()`. hUGE note 0 is C2 (65 Hz) on the pulse channels. The wave channel plays a
+  one-cycle waveform an octave low (note 0 is C1), which the gameplay bass needs to reach A1/G1; the
+  older songs still use a two-cycle wave at pulse pitch.
+- The GB runs at 59.73 fps, so the port plays 0.45% slower than the original (inaudible). Correct for
+  it (resample by 60/59.7275) before comparing a render with the original row by row, or the drift
+  of 1.6 rows over the loop smears every per-row measurement.
 - hUGE instrument ids are 1-based: the driver does `dec a` before indexing, so instrument 1 is entry [0]
   of the table. A leading "unused" row silently shifts every instrument by one - that bug had the melody
   playing a decaying 50% patch while the harmony got the loud sustained one.
@@ -115,10 +119,13 @@ hint; four auto-transcribed music tracks with sound effects; verified in SameBoy
 
 ## Remaining features (backlog)
 
-1. Music quality: the four tracks are auto-transcribed and still approximate (chroma 0.71 vs the original
-   when rendered on the GB, up from 0.61). Each voice is tracked in its own register band with a leap
-   penalty, so the lead now averages 3.5 semitones a step instead of 11 across four octaves. Hand-polish
-   melodies/harmony in src/music_data.c or re-export from hUGETracker
+1. Music quality: the tracks are auto-transcribed and still approximate. The gameplay track follows
+   what the original is: a 3-3-2 groove (attacks on rows 1, 4, 6 of the bar, nothing on row 5), chord
+   stabs and a quiet noise tick on those accents, a bright bass whose overtones fill 160-640 Hz, and
+   voices that only strike where the original strikes. No kick/snare: an imposed backbeat put the snare
+   on the original's quietest row (rhythm correlation with the original went from -0.71 to 0.82, GB-render
+   chroma from 0.715 to 0.746). The win/lose/ending songs were not regenerated with this transcriber
+   yet. Next: melody octave choices and phrases in bars 9-44 by ear, hand-polish in src/music_data.c
 2. Sound effects closer to the originals (sfx_special02 on flask, the 150/100/50 ticks, witch cackle)
 3. Ending polish: the witch walking in beside the Gardener, a happy sprite, the original's credit roll timing
 4. Palette fade on transitions

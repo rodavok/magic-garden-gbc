@@ -11,6 +11,7 @@ def synth(nrows, voices, sr=22050):
         cur = None; start = 0
         events = []
         for r, v in enumerate(notes + [None]):
+            if v == 'ring': v = (cur, False) if cur is not None else None   # a stab left to decay
             if v is None or v[1]:
                 if cur is not None: events.append((cur, start, r))
                 cur = v[0] if v else None; start = r
