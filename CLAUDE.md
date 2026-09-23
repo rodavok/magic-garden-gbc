@@ -20,11 +20,32 @@ SAMEBOY_WAV=build/sameboy/out.wav SAMEBOY_BOOT=... ./tools/sameboy/dump ...     
 ~/.local/opt/pyboy-venv/bin/python tools/mgba_capture.py build/magicgarden.gbc build/mgba "4,0.3:Return,3"   # drives mGBA on DISPLAY :0
 ```
 
-Regenerating music (only if the transcriber or reference audio changes):
+Gameplay song: edited as a text score, `res/music/gameplay.song` (one line per row, a column per channel;
+format in the `tools/song.py` docstring). `src/music_gameplay.c` is generated from it - never edit it by hand.
+
+```bash
+python3 tools/song.py show res/music/gameplay.song 4-7          # what each channel plays in bars 4-7
+~/.local/opt/pyboy-venv/bin/python tools/song_render.py         # compile score -> src/music_gameplay.c, record full + solo WAVs in SameBoy (build/song)
+~/.local/opt/pyboy-venv/bin/python tools/song_page.py           # review page in build/song; serve with the "song-viewer" launch entry (port 8766)
+~/.local/opt/pyboy-venv/bin/python tools/song_view.py 4 5 out.png --lo D4 --hi D6 --gamma 0 --ph 5 --px 80 [--render build/song/full.wav]   # original's piano roll with the score outlined
+```
+
+`tools/draft_gameplay.py` wrote the first draft of the score from the OGG (it overwrites the score: don't rerun it).
+What the original's gameplay track is: intro 0-3 (bass + chords only, no lead: everything above C5 there is
+chord overtones) | B 4-11, B' 12-17 (= 4-9) | turnaround 18-19 | intro 20-23 | C 24-31, C' 32-39 (loud 4-note
+stabs around G3-A4 and a bass that answers itself an octave up on rows 2 and 6; there is no high lead - the faint
+A6/E6 line is not worth a channel) | outro 40-43 (C5 A#4 F4 ... C5 A#4). No percussion anywhere: CH4 is silent.
+Bass strikes rows 1, 2, 5, 7 of the bar in the intro and B; chord stabs rows 0, 3, 5. In C, CH1 plays the top
+note of each stab and CH2 arpeggiates the rest. `tools/song_check.py [--bars a-b] [--lead-lo 55]` lists, per bar
+and channel, what the score strikes against what attacks in the original.
+The GB plays each chord as a 3-note arpeggio on CH2 (`C4^47`). In spectrogram work, CQT bin 3(m-24) is centred
+on note m: grouping bins 3k..3k+2 reads a third of a semitone sharp.
+
+Regenerating the other songs (only if the transcriber or reference audio changes):
 
 ```bash
 ( echo '#pragma bank 2'; echo '#include "hUGEDriver.h"'; echo '#include <stddef.h>'; echo ) > src/music_data.c
-for spec in "bgm27_gameplay song_gameplay --loop --rows 352" "bgm27_stingWin song_win" "bgm27_stingLose song_lose" "bgm27_end song_end"; do
+for spec in "bgm27_stingWin song_win" "bgm27_stingLose song_lose" "bgm27_end song_end"; do
   set -- $spec; ~/.local/opt/pyboy-venv/bin/python tools/transcribe.py reference/audio/$1.ogg $2 /tmp/$2.c $3 $4 $5; cat /tmp/$2.c >> src/music_data.c; done
 ~/.local/opt/pyboy-venv/bin/python tools/eval_transcription.py   # chroma score of the transcription vs the original
 ```
@@ -36,7 +57,10 @@ Never run the PyBoy tests while `make` is still writing the ROM: they read a hal
 - `include/game.h` game state struct `game_t` (field order matters: `tools/gbmem.py` parses it, and `pop_t` is 7 bytes) and all tuning constants
 - `src/game.c` rules; `src/render.c` BG rows/sprites/HUD/pop-ups; `src/main.c` main loop (bank 0)
 - `src/screens.c` title, high scores, game start, ending (bank 1); `src/save.c` SRAM; `src/palettes.c`; `src/sfx.c` register-level effects (all bank 1)
-- `src/music.c` song control (bank 0); `src/music_data.c` generated songs (bank 2); `src/hugebank.s` bank symbols for the driver
+- `src/music.c` song control (bank 0); `src/music_gameplay.c` compiled from `res/music/gameplay.song` and `src/music_data.c`
+  (win/lose/ending, auto-transcribed), both bank 2; `src/hugebank.s` bank symbols for the driver
+- `tools/song.py` score parser/compiler/printer; `tools/song_render.py` music-test ROM (`tools/musictest/main.c`) + SameBoy
+  recording; `tools/song_page.py` + `tools/song_page.html` review page; `tools/song_view.py` spectrogram with the score outlined
 - `lib/hUGEDriver.o` hUGEDriver in bank 2: RGBDS 0.7.0 `rgbasm -I. -DGBDK` on a copy whose "Sound Driver"
   section is `ROMX, BANK[2]`, then `rgb2sdas.py -b 2`, then its `S b*hUGE_* Ref000002` records patched to
   `Ref000000` (GBDK's linker rejects a nonzero S_REF). Sources: ~/.local/opt/hUGEDriver, ~/.local/opt/rgbds-v0.7.0
@@ -136,13 +160,10 @@ verified in SameBoy, mGBA and John GBC.
 
 ## Remaining features (backlog)
 
-1. Music quality: the tracks are auto-transcribed and still approximate. The gameplay track follows
-   what the original is: a 3-3-2 groove (attacks on rows 1, 4, 6 of the bar, nothing on row 5), chord
-   stabs and a quiet noise tick on those accents, a bright bass whose overtones fill 160-640 Hz, and
-   voices that only strike where the original strikes. No kick/snare: an imposed backbeat put the snare
-   on the original's quietest row (rhythm correlation with the original went from -0.71 to 0.82, GB-render
-   chroma from 0.715 to 0.746). The win/lose/ending songs were not regenerated with this transcriber
-   yet. Next: melody octave choices and phrases in bars 9-44 by ear, hand-polish in src/music_data.c
+1. Music quality: the gameplay track was rebuilt as a hand-editable score (res/music/gameplay.song) and is
+   being fixed bar by bar by ear with the review page. Least certain in the draft: the lead in bars 7, 10-11,
+   18-19 and all of C/C'/outro (24-43), chord qualities where the original plays 4-note chords. The win/lose/
+   ending songs are still the old auto-transcriptions in src/music_data.c.
 2. Sound effects closer to the originals (sfx_special02 on flask, the 150/100/50 ticks, witch cackle)
 3. Ending polish: the witch walking in beside the Gardener, a happy sprite, the original's credit roll timing
 4. Palette fade on transitions
