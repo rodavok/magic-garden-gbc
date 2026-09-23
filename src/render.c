@@ -141,8 +141,8 @@ static void prepare_row(uint8_t y) {
         switch (g) {
         case C_EMPTY: break;
         case C_FRIEND: t = T_OPPIE; break;
-        case C_TRAIL:  t = T_OPPIE_HAPPY; break;
-        case C_CLEARING: if (st) t = T_OPPIE_HAPPY; else { t = T_OPPIE; a = blue; } break;
+        case C_TRAIL:  t = T_FOLLOW; break;
+        case C_CLEARING: if (st) t = T_FOLLOW; else { t = T_OPPIE; a = blue; } break;
         case C_ANGRY:
             if (A_STATE(st) == A_HOP && (st & A_SPRITE)) break;   /* drawn as a sprite while hopping */
             a = blue; t = at[st & 15];
@@ -346,6 +346,7 @@ static const uint8_t font3x5[10][5] = {
    RAM only, so it runs in phase 1: repeated subtraction of a power of ten is far too slow for VBlank. */
 static uint8_t popbuf[96];
 static uint8_t pop_pending = 0xFF;
+static uint8_t bob_tick, bob_frame, bob_pending;   /* trail oppie bob: the tile flips every 5 frames */
 static void compose_pop(uint8_t k) {
     uint8_t d[6], nd = 0, c, row, i;
     uint32_t v = G.pops[k].val;
@@ -371,6 +372,7 @@ void render_prepare(void) {
         if (m != meter_last) { meter_last = m; G.hud_dirty = 1; }
         hud_col_want = G.potion_delay ? 1 + G.potion_type : 0;
     }
+    if (++bob_tick == 5) { bob_tick = 0; bob_frame ^= 1; bob_pending = 1; }
     draw_sprites();
     draw_witch();
     draw_cat();
@@ -388,5 +390,10 @@ void render_flush(void) {
     if (pop_pending != 0xFF) { set_sprite_data(SPR_POP0 + pop_pending * 6, 6, popbuf); pop_pending = 0xFF; }
     flush_rows();
     hud_flush();
+    /* last, and only with VBlank to spare: a late bob waits a frame rather than push the rows out of VBlank */
+    if (bob_pending && LY_REG >= 144 && LY_REG < 151) {
+        bob_pending = 0;
+        memcpy((uint8_t *)0x8000 + (uint16_t)T_FOLLOW * 16, follow_bob + (bob_frame << 4), 16);
+    }
 }
 

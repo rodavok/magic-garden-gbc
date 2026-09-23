@@ -70,7 +70,7 @@
 #define T_STAR 123
 #define T_STAR_INV 124
 #define T_OPPIE 125
-#define T_OPPIE_HAPPY 126
+#define T_FOLLOW 126
 #define T_OPPIE_LOOK_L 127
 #define T_OPPIE_LOOK_U 128
 #define T_OPPIE_LOOK_D 129
@@ -188,6 +188,7 @@
 
 extern const uint8_t spr_tiles[];
 extern const uint8_t bg_tiles[];
+extern const uint8_t follow_bob[32];
 extern const uint8_t side_tiles[];
 #define SIDE_TILE_COUNT 125
 #define B1_DIGIT 63
