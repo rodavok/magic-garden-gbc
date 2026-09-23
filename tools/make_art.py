@@ -22,65 +22,66 @@ def tile2bpp(rows):
 def hflip(rows): return [r[::-1] for r in rows]
 
 # ------------------------------------------------------------------ sprites (OBJ, 8x16 mode)
-# Gardener: 1 = dark hair/outline, 2 = purple dress, 3 = white/skin
-# Gardener, 8x24 (two stacked 8x16 OBJs; bottom object has 8 blank rows).
+# Gardener, 8x16 (one OBJ): feet in her cell, head overhanging the cell above.
 # 1 = dark purple (hair/outline/boots), 2 = purple dress, 3 = white (face, collar, socks).
 # Four walk frames per direction: legs and arms only, no vertical bob.
-HEAD = {
- 'down': ["..1111..", ".111111.", "11111111", "11111111", "11333311", "13333331", "13133131", "13133131", "13333331", ".133331."],
- 'up':   ["..1111..", ".111111.", "11111111", "11111111", "11111111", "11111111", "11111111", "11111111", "11111111", ".111111."],
+HEAD = {    # 7 rows. The original is 2/3 hair and 1/3 face; the bob closes under the chin, so the white
+            # face never touches the white of the hands. The face is an oval - narrow forehead and chin
+            # rows, wide eye rows - so the 1x2 eye bars read as eyes instead of as stripes.
+ 'down': ["..1111..", ".111111.", "11333311", "13133131", "13133131", ".133331.", "..1111.."],
+ 'up':   ["..1111..", ".111111.", "11111111", "11111111", "11111111", ".111111.", "..1111.."],
  # side: face on the left, bob-cut hair falling to the shoulder on the right
- 'left': ["..1111..", ".111111.", "11111111", "11111111", "11331111", "13331111", "13131111", "13331111", "13331111", ".133111."],
+ 'left': ["..1111..", ".111111.", "11331111", "13131111", "13131111", ".1331111", "..11111."],
 }
-TORSO = {   # 9 rows: collar, shoulders, arms x2, waist x3, hem x2 (arm and hem rows are patched per frame)
- 'down': ["..2332..", ".222222.", "32222223", "32222223", ".222222.", ".222222.", ".222222.", "22222222", "22222222"],
- 'up':   ["..2222..", ".222222.", "32222223", "32222223", ".222222.", ".222222.", ".222222.", "22222222", "22222222"],
- 'left': ["..23111.", ".222211.", ".223222.", ".223222.", ".222222.", ".222222.", ".222222.", "22222222", "22222222"],
+TORSO = {   # 5 rows: collar, arms x2, waist, hem (arm and hem rows are patched per frame)
+ 'down': [".222222.", "32222223", "32222223", ".222222.", "22222222"],
+ 'up':   [".222222.", "32222223", "32222223", ".222222.", "22222222"],
+ 'left': [".222111.", ".223222.", ".223222.", ".222222.", "22222222"],
 }
-ARMS = {    # torso rows 2-3: front/back views swing opposite arms; side view swings the near arm across the dress
+ARMS = {    # torso rows 1-2: front/back views swing opposite arms; side view swings the near arm across the dress
  'down': [("32222223", "32222223"), (".2222223", "32222223"), ("32222223", "32222223"), ("32222223", ".2222223")],
  'up':   [("32222223", "32222223"), ("32222223", ".2222223"), ("32222223", "32222223"), (".2222223", "32222223")],
  'left': [(".223222.", ".223222."), (".232222.", ".232222."), (".223222.", ".223222."), (".222322.", ".222322.")],
 }
-HEM = {     # torso row 8: the hem sways toward the leading leg
+HEM = {     # torso row 4: the hem sways toward the leading leg
  'down': ["22222222", ".2222222", "22222222", "2222222."],
  'up':   ["22222222", "2222222.", "22222222", ".2222222"],
  'left': ["22222222", ".2222222", "22222222", "2222222."],
 }
-LEGS = {    # 5 rows: legs (3) + boots (2)
- 'down': [("..3..3..", "..3..3..", "..3..3..", ".11..11.", ".11..11."),
-          ("..3..3..", ".11..3..", ".11..3..", "....11..", "....11.."),
-          ("..3..3..", "..3..3..", "..3..3..", ".11..11.", ".11..11."),
-          ("..3..3..", "..3..11.", "..3..11.", "..11....", "..11....")],
- 'up':   [("..3..3..", "..3..3..", "..3..3..", ".11..11.", ".11..11."),
-          ("..3..3..", ".11..3..", ".11..3..", "....11..", "....11.."),
-          ("..3..3..", "..3..3..", "..3..3..", ".11..11.", ".11..11."),
-          ("..3..3..", "..3..11.", "..3..11.", "..11....", "..11....")],
- 'left': [("..3.3...", "..3.3...", "..3.3...", ".11.11..", ".11.11.."),
-          (".3...3..", ".3...3..", "11...3..", "11..11..", "....11.."),
-          ("...33...", "...33...", "...33...", "..1111..", "..1111.."),
-          (".3...3..", ".3...3..", ".3...11.", "11...11.", "11......")],
+LEGS = {    # 4 rows: legs (2) + boots (2)
+ 'down': [("..3..3..", "..3..3..", ".11..11.", ".11..11."),
+          ("..3..3..", ".11..3..", "....11..", "....11.."),
+          ("..3..3..", "..3..3..", ".11..11.", ".11..11."),
+          ("..3..3..", "..3..11.", "..11....", "..11....")],
+ 'up':   [("..3..3..", "..3..3..", ".11..11.", ".11..11."),
+          ("..3..3..", ".11..3..", "....11..", "....11.."),
+          ("..3..3..", "..3..3..", ".11..11.", ".11..11."),
+          ("..3..3..", "..3..11.", "..11....", "..11....")],
+ 'left': [("..3.3...", "..3.3...", ".11.11..", ".11.11.."),
+          (".3...3..", "11...3..", "11..11..", "....11.."),
+          ("...33...", "...33...", "..1111..", "..1111.."),
+          (".3...3..", ".3...11.", "11...11.", "11......")],
 }
 def gardener_frames(direction):
     out = []
     for f in range(4):
-        torso = list(TORSO[direction]); torso[2], torso[3] = ARMS[direction][f]; torso[8] = HEM[direction][f]
+        torso = list(TORSO[direction]); torso[1], torso[2] = ARMS[direction][f]; torso[4] = HEM[direction][f]
         frame = HEAD[direction] + torso + list(LEGS[direction][f])
-        assert len(frame) == 24
-        out.append(frame + ['........'] * 8)
+        assert len(frame) == 16
+        out.append(frame)
     return out
 GARDENER = {}
 for _d in ('down', 'up', 'left'):
     for _f, _fr in enumerate(gardener_frames(_d)): GARDENER['%s%d' % (_d, _f)] = '\n'.join(_fr)
 # three-quarter turn poses (facing down-left / up-left; mirrored for the right side)
-DIAG_DOWN = ["..1111..", ".111111.", "11111111", "11111111", "11333111", "13333311", "13131311", "13131311", "13333311", ".133311.",
-             "..23211.", ".222221.", ".2322223", ".2322223", ".222222.", ".222222.", ".222222.", "22222222", "22222222",
-             "..3.3...", "..3.3...", "..3.3...", ".11.11..", ".11.11.."]
-DIAG_UP   = ["..1111..", ".111111.", "11111111", "11111111", "13111111", "13111111", "13111111", "13111111", "11111111", ".111111.",
-             "..2221..", ".222222.", ".3222223", ".3222223", ".222222.", ".222222.", ".222222.", "22222222", "22222222",
-             "..3.3...", "..3.3...", "..3.3...", ".11.11..", ".11.11.."]
-GARDENER['diagdown'] = '\n'.join(DIAG_DOWN + ['........'] * 8)
-GARDENER['diagup'] = '\n'.join(DIAG_UP + ['........'] * 8)
+DIAG_DOWN = ["..1111..", ".111111.", "11333111", "13131311", "13131311", ".133311.", "..1111..",
+             ".222211.", ".2322223", ".2322223", ".222222.", "22222222",
+             "..3.3...", "..3.3...", ".11.11..", ".11.11.."]
+DIAG_UP   = ["..1111..", ".111111.", "11111111", "13111111", "13111111", ".111111.", "..1111..",
+             ".222222.", ".3222223", ".3222223", ".222222.", "22222222",
+             "..3.3...", "..3.3...", ".11.11..", ".11.11.."]
+GARDENER['diagdown'] = '\n'.join(DIAG_DOWN)
+GARDENER['diagup'] = '\n'.join(DIAG_UP)
 FONT_DIGITS = {
 '0': ["01110","10001","10011","10101","11001","10001","01110"],
 '1': ["00100","01100","00100","00100","00100","00100","01110"],
@@ -134,14 +135,13 @@ def add_sprite(name, r16):
     assert len(r16) == 16, (name, len(r16))
     sprite_tiles.append((name, r16))
 for k in ['%s%d' % (d, f) for d in ('down', 'up', 'left') for f in range(4)] + ['diagdown', 'diagup']:
-    r32 = rows(GARDENER[k])
-    add_sprite('SPR_' + k.upper(), r32[:16])          # top object (tile n)
-    add_sprite('SPR_' + k.upper() + '_B', r32[16:])   # bottom object (tile n + 2)
+    add_sprite('SPR_' + k.upper(), rows(GARDENER[k]))
 add_sprite('SPR_FLASK', ['........']*8 + rows(FLASK))
 add_sprite('SPR_SHADOW', ['........']*8 + rows(SHADOW))
 add_sprite('SPR_OPPIE', ['........']*8 + rows(OPPIE_SPR))
-# dynamic tiles for score pop-ups: 6 pop-ups x 2 objects (8x16), composed at runtime from a 3x5 font
-for _k in range(12):
+# dynamic tiles for score pop-ups: 6 pop-ups x 3 objects (8x16), composed at runtime from a 3x5 font
+# (3 objects = 6 digits, enough for the biggest award a long power chain can pay)
+for _k in range(18):
     add_sprite('SPR_POP%d' % _k, ['........'] * 16)
 
 # ------------------------------------------------------------------ BG tiles

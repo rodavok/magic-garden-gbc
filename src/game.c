@@ -147,14 +147,14 @@ static void power_expire(void) {
     G.angry_spawn_timer = 1;   /* an enemy spawns as soon as the flask wears off */
 }
 
-static void add_pop(uint8_t cell, uint16_t val) {
+static void add_pop(uint8_t cell, uint32_t val) {
     uint8_t k;
     for (k = 0; k < MAX_POPS; k++) if (G.pops[k].t == 0) {
         G.pops[k].x = cell % GW; G.pops[k].y = cell / GW; G.pops[k].t = 60; G.pops[k].val = val; G.pop_dirty |= (uint8_t)(1 << k); return;
     }
 }
 static void kill_enemy(uint8_t i) {
-    uint16_t val = (uint16_t)(10 + (uint16_t)G.chain * 10) * G.mult;
+    uint32_t val = (uint32_t)(10 + (uint16_t)G.chain * 10) * G.mult;   /* 32-bit: a long power chain overflows 16 */
     if (G.grid[i] == C_ANGRY) remove_angry(i); else set_cell(i, C_EMPTY);
     sfx_kill();
     add_pop(i, val);
@@ -244,7 +244,7 @@ static void update_clearing(void) {
     {
         uint8_t i = G.trail[G.clear_k];
         if (G.grid[i] == C_CLEARING) {
-            if (G.gstate[i]) { set_cell(i, C_EMPTY); G.score += (uint32_t)10 * (G.clear_k + 1); add_pop(i, (uint16_t)10 * (G.clear_k + 1)); G.hud_dirty = 1; }
+            if (G.gstate[i]) { set_cell(i, C_EMPTY); G.score += (uint32_t)10 * (G.clear_k + 1); add_pop(i, (uint32_t)10 * (G.clear_k + 1)); G.hud_dirty = 1; }
             else add_angry(i, ENEMY_IDLE);
         }
         if (++G.clear_k == G.clear_n) {

@@ -56,9 +56,9 @@ void title_animate(void) {
 
 /* digits from most significant: simple repeated subtraction (no 32-bit division) */
 static void put_number_ms(uint8_t *buf, uint8_t x, uint8_t y, uint32_t v, uint8_t digits) {
-    static const uint32_t pw[6] = { 100000UL, 10000UL, 1000UL, 100UL, 10UL, 1UL };
+    static const uint32_t pw[8] = { 10000000UL, 1000000UL, 100000UL, 10000UL, 1000UL, 100UL, 10UL, 1UL };
     uint8_t *p = buf + y * 20 + x; uint8_t k;
-    for (k = 6 - digits; k < 6; k++) { uint8_t d = 0; while (v >= pw[k] && d < 9) { v -= pw[k]; d++; } *p++ = FONT_FIRST + d; }
+    for (k = 8 - digits; k < 8; k++) { uint8_t d = 0; while (v >= pw[k] && d < 9) { v -= pw[k]; d++; } *p++ = FONT_FIRST + d; }
 }
 
 void show_scores(void) {
@@ -71,7 +71,7 @@ void show_scores(void) {
     map_text(screen_buf, 1, 3, "RANK  SCORE  SAVED");
     for (i = 0; i < HS_ENTRIES; i++) {
         map_text(screen_buf, 1, 4 + i, rank[i]);
-        put_number_ms(screen_buf, 6, 4 + i, SAVE.table[i].score, 6);
+        put_number_ms(screen_buf, 6, 4 + i, SAVE.table[i].score, 8);
         put_number_ms(screen_buf, 15, 4 + i, SAVE.table[i].saved, 3);
     }
     map_text(screen_buf, 1, 10, "BIGGEST DROP-OFF");

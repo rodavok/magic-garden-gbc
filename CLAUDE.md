@@ -32,7 +32,7 @@ Never run the PyBoy tests while `make` is still writing the ROM: they read a hal
 
 ## Layout
 
-- `include/game.h` game state struct `game_t` (field order matters: `tools/gbmem.py` parses it, and `pop_t` is 5 bytes) and all tuning constants
+- `include/game.h` game state struct `game_t` (field order matters: `tools/gbmem.py` parses it, and `pop_t` is 7 bytes) and all tuning constants
 - `src/game.c` rules; `src/render.c` BG rows/sprites/HUD/pop-ups; `src/main.c` main loop (bank 0)
 - `src/screens.c` title, high scores, game start, ending (bank 1); `src/save.c` SRAM; `src/palettes.c`; `src/sfx.c` register-level effects (all bank 1)
 - `src/music.c` song control (bank 0); `src/music_data.c` generated songs (bank 2); `src/hugebank.s` bank symbols for the driver
@@ -66,9 +66,23 @@ Never run the PyBoy tests while `make` is still writing the ROM: they read a hal
 - Sound: `music_update()` runs in VBlank; sfx.c mutes the driver's channel for the effect's length via
   `music_sfx_hold()`. hUGE note 0 is C2 (65 Hz). The wave channel plays an octave low for a one-cycle
   waveform, so bass waves hold two cycles.
+- hUGE instrument ids are 1-based: the driver does `dec a` before indexing, so instrument 1 is entry [0]
+  of the table. A leading "unused" row silently shifts every instrument by one - that bug had the melody
+  playing a decaying 50% patch while the harmony got the loud sustained one.
+- Channel 1 is the melody. No effect that fires during play may touch it, or the tune drops out for a
+  third of a second every jump: gameplay effects use channel 2 (the harmony, which sounds about one row
+  in seven) or channel 4. Only death and the win fanfare use channel 1, and the track is ending by then.
+  Channel 2 has no hardware sweep, so `sfx_update()` walks the frequency itself once a frame, writing
+  pitch without the restart bit; it clamps at a ceiling instead of sweeping into an overflow silence.
 - Palette budget: BG 0/1 friendly on floor A/B, 2/3 angry+mushroom, 4/5 star pad, 6 decoration
   (ground, black, purple, light blue), 7 HUD. OBJ 0 player, 1-4 flasks, 5 shadow, 6 red oppie/pop-ups, 7 blue oppie.
-- Sprite slots: 0-1 player (8x24), 2 shadow, 3-8 hopping enemies, 9-14 flasks, 15-26 pop-ups (2 each).
+- Sprite slots: 0 player (8x16, head overhangs the cell above), 1 unused, 2 shadow, 3-8 hopping enemies,
+  9-14 flasks, 15-32 pop-ups (3 objects each, only as many shown as the value needs).
+- Score is `uint32` end to end (state, SRAM, HUD, high-score table) and displays 8 digits, so it is exact to
+  99,999,999. A kill award is `(10 + 10 x kills) x multiplier` in 32-bit: the multiplier stacks across flasks
+  picked up while power is still running, so awards reach five digits. Pop-ups render up to 6 digits.
+  Decimal conversion is repeated subtraction of a power of ten, never `/` or `%` on a 32-bit value, and the
+  pop-up tiles are composed in phase 1 - only the VRAM copy belongs in VBlank.
 
 ## Original rules (read from UFO 50's GML bytecode with tools/gml_dump.py; keep the port on these)
 
@@ -101,8 +115,10 @@ hint; four auto-transcribed music tracks with sound effects; verified in SameBoy
 
 ## Remaining features (backlog)
 
-1. Music quality: the four tracks are auto-transcribed and approximate (chroma score 0.32 vs the original
-   when rendered on the GB). Hand-polish melodies/harmony in src/music_data.c or re-export from hUGETracker
+1. Music quality: the four tracks are auto-transcribed and still approximate (chroma 0.71 vs the original
+   when rendered on the GB, up from 0.61). Each voice is tracked in its own register band with a leap
+   penalty, so the lead now averages 3.5 semitones a step instead of 11 across four octaves. Hand-polish
+   melodies/harmony in src/music_data.c or re-export from hUGETracker
 2. Sound effects closer to the originals (sfx_special02 on flask, the 150/100/50 ticks, witch cackle)
 3. Ending polish: the witch walking in beside the Gardener, a happy sprite, the original's credit roll timing
 4. Palette fade on transitions

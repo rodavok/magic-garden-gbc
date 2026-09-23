@@ -74,6 +74,7 @@ void main(void) {
         /* phase 2: VRAM writes in VBlank */
         wait_vbl_done();
         music_update();
+        sfx_update();
         if (state == ST_ENDING) {
             render_flush();
             ending_flush();

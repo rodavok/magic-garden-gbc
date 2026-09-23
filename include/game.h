@@ -48,7 +48,7 @@
 /* ---- cell contents ---- */
 enum { C_EMPTY, C_FRIEND, C_TRAIL, C_ANGRY, C_MUSH, C_FLASK, C_APPEAR_ANGRY, C_APPEAR_MUSH, C_CLEARING };
 #define MAX_POPS 6
-typedef struct { uint8_t x, y, t; uint16_t val; } pop_t;
+typedef struct { uint8_t x, y, t; uint32_t val; } pop_t;   /* 7 bytes; tools/gbmem.py knows this */
 /* angry oppie state (gstate bits 0-1); look/hop dir in bits 2-3; bit 6: rendered as a hop sprite */
 enum { A_IDLE, A_LOOK, A_HOP, A_STUN };
 #define A_STATE(s)  ((s) & 3)
