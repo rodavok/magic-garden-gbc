@@ -166,27 +166,77 @@ static void prepare_row(uint8_t y) {
 /* A row costs about 15 scanlines, so during play a new one is only started while the logic phase can
    still finish before VBlank (LY >= 144 means it is already late). The rest stay flagged for later frames. */
 #define ROW_LY_LIMIT 118
-static void prepare_grid(uint8_t budgeted) {
+static void prepare_grid(uint8_t budgeted, uint8_t max_rows) {
     uint8_t y;
     uint16_t m = G.dirty_rows, bit = 1;
     n_rows = 0;
     if (!m) return;
     star_t = (G.pad_invert && (G.pad_flash || G.pad_life <= PAD_WARN)) ? T_STAR_INV : T_STAR;
-    for (y = 0; y < GH && n_rows < MAX_ROWS_PER_FRAME; y++, bit <<= 1)
+    for (y = 0; y < GH && n_rows < max_rows; y++, bit <<= 1)
         if (m & bit) {
             if (budgeted && LY_REG >= ROW_LY_LIMIT) break;
             prepare_row(y); G.dirty_rows &= ~bit;
         }
 }
 
+/* 12 bytes (one playfield row) into the tile map, unrolled: 5 cycles a byte against memcpy's ~12, which
+   left four rows taking 7 of VBlank's 10 lines. dst in DE, src in BC (sdcccall 1); a playfield row sits
+   at columns 4-15 of a 32-byte map row, so it never crosses a 256-byte page and inc e is enough. */
+static void copy_row(uint8_t *dst, const uint8_t *src) __naked {
+    (void)dst; (void)src;
+__asm
+    ld  h, b
+    ld  l, c
+    ld  a, (hl+)
+    ld  (de), a
+    inc e
+    ld  a, (hl+)
+    ld  (de), a
+    inc e
+    ld  a, (hl+)
+    ld  (de), a
+    inc e
+    ld  a, (hl+)
+    ld  (de), a
+    inc e
+    ld  a, (hl+)
+    ld  (de), a
+    inc e
+    ld  a, (hl+)
+    ld  (de), a
+    inc e
+    ld  a, (hl+)
+    ld  (de), a
+    inc e
+    ld  a, (hl+)
+    ld  (de), a
+    inc e
+    ld  a, (hl+)
+    ld  (de), a
+    inc e
+    ld  a, (hl+)
+    ld  (de), a
+    inc e
+    ld  a, (hl+)
+    ld  (de), a
+    inc e
+    ld  a, (hl)
+    ld  (de), a
+    ret
+__endasm;
+}
+#if GW != 12 || MAP_X + GW > 32
+#error copy_row copies exactly one 12-cell row within a map row
+#endif
+
 /* Straight copies into the tile map during VBlank (GBDK's set_bkg_tiles is several times slower). */
 static void flush_rows(void) {
     uint8_t k;
     for (k = 0; k < n_rows; k++) {
         uint8_t *dst = (uint8_t *)(0x9800 + ((uint16_t)(MAP_Y + rowbuf_y[k]) << 5) + MAP_X);
-        memcpy(dst, rowbuf_t[k], GW);
+        copy_row(dst, rowbuf_t[k]);
         VBK_REG = 1;
-        memcpy(dst, rowbuf_a[k], GW);
+        copy_row(dst, rowbuf_a[k]);
         VBK_REG = 0;
     }
     n_rows = 0;
@@ -195,7 +245,7 @@ static void flush_rows(void) {
 /* full redraw in VBlank chunks (used when a game starts) */
 void render_grid_full(void) {
     G.dirty_rows = 0xFFF;
-    while (G.dirty_rows) { prepare_grid(0); wait_vbl_done(); flush_rows(); }
+    while (G.dirty_rows) { prepare_grid(0, MAX_ROWS_PER_FRAME); wait_vbl_done(); flush_rows(); }
 }
 
 /* digits a pop-up value needs (1-6); two digits share an 8 px tile */
@@ -343,8 +393,11 @@ static const uint8_t font3x5[10][5] = {
     { 0xE0, 0xA0, 0xE0, 0x20, 0xE0 },
 };
 /* Compose the three 8x16 objects of pop-up k (digits in rows 1-5 of each top tile, colour index 2).
-   RAM only, so it runs in phase 1: repeated subtraction of a power of ten is far too slow for VBlank. */
-static uint8_t popbuf[96];
+   RAM only, so it runs in phase 1: repeated subtraction of a power of ten is far too slow for VBlank.
+   Those 15 bytes (the upper plane of rows 1-5 of the three top tiles) are the only ones a pop-up ever
+   sets; the rest of its tiles stay blank from boot, so VBlank uploads just these. */
+static uint8_t popbuf[15];                  /* [tile 0-2][row 1-5] */
+static uint8_t *pop_dst;                    /* VRAM address of the first of them */
 static uint8_t pop_pending = 0xFF;
 static uint8_t bob_tick, bob_frame, bob_pending;   /* trail oppie bob: the tile flips every 5 frames */
 static void compose_pop(uint8_t k) {
@@ -358,9 +411,10 @@ static void compose_pop(uint8_t k) {
         if (c || nd || i == 7) d[nd++] = c;
     }
     for (i = 0; i < nd; i++) {
-        uint8_t tile = (i >> 1) * 2, shift = (i & 1) ? 4 : 0;   /* top half of object i/2, digit at x 0 or 4 */
-        for (row = 0; row < 5; row++) popbuf[tile * 16 + (row + 1) * 2 + 1] |= font3x5[d[i]][row] >> shift;
+        uint8_t *b = &popbuf[(i >> 1) * 5], shift = (i & 1) ? 4 : 0;   /* object i/2, digit at x 0 or 4 */
+        for (row = 0; row < 5; row++) b[row] |= font3x5[d[i]][row] >> shift;
     }
+    pop_dst = (uint8_t *)0x8000 + (uint16_t)(SPR_POP0 + k * 6) * 16 + 3;   /* row 1, upper plane */
     pop_pending = k;
 }
 
@@ -376,18 +430,27 @@ void render_prepare(void) {
     draw_sprites();
     draw_witch();
     draw_cat();
+    /* GBDK's palette load waits for HBlank before each of its 128 bytes, so it runs far past VBlank (safely);
+       rows, HUD and pop-ups written after it would land in the visible frame and be dropped. They wait a frame. */
+    if (pal_pending) return;
     /* both are 32-bit decimal conversions: at most one per frame, the HUD waits a frame for a pop-up */
     if (G.pop_dirty && pop_pending == 0xFF) {
         uint8_t k;
         for (k = 0; k < MAX_POPS; k++) if (G.pop_dirty & (1 << k)) { G.pop_dirty &= (uint8_t)~(1 << k); compose_pop(k); break; }
     } else if (G.hud_dirty) { G.hud_dirty = 0; hud_prepare(); }
-    prepare_grid(1);   /* last: it fills whatever time the frame has left */
+    /* last: it fills whatever time the frame has left. VBlank (lines 145-153) fits 4 rows (~1.3 lines
+       each) and the bob; beside a pop-up upload (~2.5) or the HUD (~3) it fits 2 */
+    prepare_grid(1, (pop_pending != 0xFF || hud_ready) ? 2 : MAX_ROWS_PER_FRAME);
 }
 /* Phase 2 (right after wait_vbl_done): VRAM + palette writes only. */
 void render_flush(void) {
     if (pal_pending) { pal_pending = 0; palettes_apply(cur_set); hud_col_have = 0xFF; }
     if (hud_col_want != hud_col_have) { hud_col_have = hud_col_want; set_bkg_palette_entry(7, 3, hud_colors[hud_col_want]); }
-    if (pop_pending != 0xFF) { set_sprite_data(SPR_POP0 + pop_pending * 6, 6, popbuf); pop_pending = 0xFF; }
+    if (pop_pending != 0xFF) {
+        uint8_t *d = pop_dst, *b = popbuf, t, r;
+        for (t = 0; t < 3; t++, d += 22) for (r = 0; r < 5; r++, d += 2) *d = *b++;   /* next tile: 32 on */
+        pop_pending = 0xFF;
+    }
     flush_rows();
     hud_flush();
     /* last, and only with VBlank to spare: a late bob waits a frame rather than push the rows out of VBlank */

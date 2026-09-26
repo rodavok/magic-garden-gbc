@@ -72,10 +72,9 @@ void main(void) {
             if (pressed & J_START) { show_title(); state = ST_TITLE; }
             break;
         }
-        /* phase 2: VRAM writes in VBlank */
+        /* phase 2: VRAM writes in VBlank, then sound (it has no VBlank constraint, and run first it took
+           half of VBlank and pushed the row flush into the visible frame, where the writes are lost) */
         wait_vbl_done();
-        music_update();
-        sfx_update();
         if (state == ST_ENDING) {
             render_flush();
             ending_flush();
@@ -93,5 +92,7 @@ void main(void) {
                 state = ST_OVER;
             }
         }
+        music_update();
+        sfx_update();
     }
 }

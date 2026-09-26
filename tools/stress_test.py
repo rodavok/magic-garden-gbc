@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Slowdown check under load: a full trail, many angry oppies, flasks, pop-ups. Counts game updates per
-emulator frame (must be 1:1) and reports the worst logic-phase end scanline (dbg[1]).
+emulator frame (must be 1:1), reports the worst logic-phase end scanline (dbg[1]), and checks that the VBlank
+flush (VRAM writes) ends inside VBlank (dbg[3]): tile-map writes after it are dropped on hardware.
 usage: stress_test.py [rom] [n_angry] [trail_len] [mode]
 mode: play (default), power (a flask is running: enemies flash, frozen), drop (B with the trail half on the pad)"""
 import sys, os
@@ -45,6 +46,7 @@ if MODE == 'power': wr('power_timer', 30000); wr('mult', 3)
 if MODE == 'drop':
     for y in range(12): wr('pad_rows', 0x3F if 2 <= y <= 5 else 0, y)
 worst, misses, frames = 0, 0, 600
+flush_worst, overruns = 0, 0
 for f in range(frames):
     wr('sub', 5)
     if MODE == 'drop' and f == 10: pb.button_press('b')
@@ -55,5 +57,9 @@ for f in range(frames):
     if d == 0: misses += 1
     ly = rd('dbg', 1)
     if ly < 144: worst = max(worst, ly)
-print(f'{MODE} angry={n} trail={NT}: skipped frames {misses}/{frames}, worst logic end LY {worst} (VBlank at 144)')
-sys.exit(1 if misses else 0)
+    fl = rd('dbg', 3)
+    if fl < 144: overruns += 1
+    else: flush_worst = max(flush_worst, fl)
+print(f'{MODE} angry={n} trail={NT}: skipped frames {misses}/{frames}, worst logic end LY {worst} (VBlank at 144), '
+      f'VBlank flush past line 153 on {overruns} frames (latest in VBlank: {flush_worst})')
+sys.exit(1 if misses or overruns else 0)

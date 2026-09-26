@@ -15,6 +15,7 @@ python3 tools/make_art.py # regenerate src/gfx_data.c + include/gfx_data.h after
 ~/.local/opt/pyboy-venv/bin/python tools/perf_test.py   # one update per frame + scanline timing
 ~/.local/opt/pyboy-venv/bin/python tools/stress_test.py build/magicgarden.gbc 64 48 [play|power|drop]   # full field: 0 skipped frames expected
 ~/.local/opt/pyboy-venv/bin/python tools/autopilot.py   # bot plays a minute; screenshots in build/auto
+~/.local/opt/pyboy-venv/bin/python tools/hw_check.py    # SameBoy: counts VRAM/palette writes real hardware drops (0 expected); run after touching render/main
 SAMEBOY_BOOT=~/.local/opt/SameBoy-1.0.3/build/bin/BootROMs/cgb_boot.bin ./tools/sameboy/dump build/magicgarden.gbc "230,5:start,40,5:down,600" build/sameboy/x   # accurate headless run: PPM frames + PPU/palette/tilemap dump per step
 SAMEBOY_WAV=build/sameboy/out.wav SAMEBOY_BOOT=... ./tools/sameboy/dump ...                 # same, also records the audio
 ~/.local/opt/pyboy-venv/bin/python tools/mgba_capture.py build/magicgarden.gbc build/mgba "4,0.3:Return,3"   # drives mGBA on DISPLAY :0
@@ -75,7 +76,13 @@ Never run the PyBoy tests while `make` is still writing the ROM: they read a hal
 
 - VRAM and palette writes only in VBlank (after `wait_vbl_done()`) or with the LCD off at boot. Screen
   transitions use `vram_draw_map()` (2 rows per VBlank); the game flushes at most 4 dirty rows per frame
-  by direct `memcpy` into the tile map (GBDK's `set_bkg_tiles` is several times slower and overran VBlank).
+  by an unrolled copy into the tile map (GBDK's `set_bkg_tiles` is several times slower and overran VBlank).
+  VBlank is budgeted: from line 145 it fits 4 rows (~1.3 lines each) and the bob; 2 rows beside a pop-up
+  upload or the HUD; nothing beside a palette load (GBDK's waits for HBlank per byte and runs far past
+  VBlank). Tile-map writes after line 153 are silently dropped on hardware and SameBoy but not in PyBoy,
+  so `tools/stress_test.py` fails when the flush ends outside VBlank (dbg[3]) and `tools/hw_check.py`
+  counts every dropped write in SameBoy. On a flash cart a dropped attribute write shows as a cell in the
+  wrong palette (a star pad cell that stays floor-coloured) until the row is redrawn.
   Never switch the LCD off after boot: emulators such as John GBC drop LCD-off writes.
 - Never call `hud_text()` with an empty string: a zero width underflows to 256 tiles in `set_bkg_tiles`.
 - No per-frame full-grid scans. SDCC sm83 code costs 200-500 cycles per loop iteration; use the entity lists
@@ -92,7 +99,8 @@ Never run the PyBoy tests while `make` is still writing the ROM: they read a hal
 - Banks: bank 1 is mapped by default (graphics, screens, palettes, sfx, save). Every hUGEDriver call
   (`hUGE_init`, `hUGE_dosound`, `hUGE_mute_channel`) must be wrapped in `SWITCH_ROM(2)` / `SWITCH_ROM(1)`;
   a call with bank 1 mapped executes tile data as code and corrupts RAM. Only bank-0 code may switch banks.
-- Sound: `music_update()` runs in VBlank; sfx.c mutes the driver's channel for the effect's length via
+- Sound: `music_update()` / `sfx_update()` run once a frame right after the VBlank flush, never before it
+  (run first, they took half of VBlank and pushed row writes into the visible frame); sfx.c mutes the driver's channel for the effect's length via
   `music_sfx_hold()`. hUGE note 0 is C2 (65 Hz) on the pulse channels. The wave channel plays a
   one-cycle waveform an octave low (note 0 is C1), which the gameplay bass needs to reach A1/G1; the
   older songs still use a two-cycle wave at pulse pitch.
