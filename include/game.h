@@ -65,6 +65,7 @@ typedef struct {
     uint8_t grid[NCELLS];      /* cell type */
     uint8_t gstate[NCELLS];    /* angry: state; flask: level */
     uint8_t gtimer[NCELLS];    /* angry / appear / flask timers */
+    uint8_t trail_under[NCELLS];   /* 1: a trail oppie under whatever else holds the cell (see advance_trail) */
     uint8_t trail[MAX_TRAIL];
     uint8_t angry_list[MAX_ANGRY];
     uint8_t appear_list[MAX_APPEAR];

@@ -34,22 +34,26 @@ static void list_remove(uint8_t *list, uint8_t *n, uint8_t cell) {
     for (k = 0; k < *n; k++) if (list[k] == cell) { list[k] = list[*n - 1]; (*n)--; return; }
 }
 static void set_cell(uint8_t i, uint8_t type) { G.grid[i] = type; DIRTY_CELL(i); }
+/* whatever held cell i leaves it: a trail oppie that was under it shows again */
+static void vacate(uint8_t i) {
+    if (G.trail_under[i]) { G.trail_under[i] = 0; set_cell(i, C_TRAIL); } else set_cell(i, C_EMPTY);
+}
 
 static void add_angry(uint8_t i, uint8_t idle) {
-    if (G.n_angry >= MAX_ANGRY) { set_cell(i, C_EMPTY); return; }
+    if (G.n_angry >= MAX_ANGRY) { vacate(i); return; }
     set_cell(i, C_ANGRY); G.gstate[i] = A_IDLE; G.gtimer[i] = idle;
     G.angry_list[G.n_angry++] = i;
 }
 static void remove_angry(uint8_t i) {
     if (G.gstate[i] & A_SPRITE) G.hop_sprites--;
-    set_cell(i, C_EMPTY); list_remove(G.angry_list, &G.n_angry, i);
+    vacate(i); list_remove(G.angry_list, &G.n_angry, i);
 }
 static void remove_flask(uint8_t i) {
     uint8_t k;
     for (k = 0; k < G.n_flask; k++) if (G.flask_list[k] == i) {
         G.flask_list[k] = G.flask_list[G.n_flask - 1]; G.flask_fall[k] = G.flask_fall[G.n_flask - 1]; G.n_flask--; break;
     }
-    set_cell(i, C_EMPTY);
+    vacate(i);
 }
 
 /* the original tries 10 random cells in columns/rows 0..10 that hold nothing, then gives up (potions scan) */
@@ -115,7 +119,7 @@ static void make_pad(void) {
 
 void game_init(void) {
     uint8_t i;
-    for (i = 0; i < NCELLS; i++) { G.grid[i] = C_EMPTY; G.gstate[i] = 0; G.gtimer[i] = 0; }
+    for (i = 0; i < NCELLS; i++) { G.grid[i] = C_EMPTY; G.gstate[i] = 0; G.gtimer[i] = 0; G.trail_under[i] = 0; }
     n_hop_cells = 0;
     G.trail_len = 0; G.n_angry = 0; G.n_appear = 0; G.n_flask = 0; G.n_friend = 0; G.hop_sprites = 0;
     G.clear_n = 0; G.clear_k = 0; G.clear_timer = 0;
@@ -160,7 +164,7 @@ static void add_pop(uint8_t cell, uint32_t val) {
 }
 static void kill_enemy(uint8_t i) {
     uint32_t val = (uint32_t)(10 + (uint16_t)G.chain * 10) * G.mult;   /* 32-bit: a long power chain overflows 16 */
-    if (G.grid[i] == C_ANGRY) remove_angry(i); else set_cell(i, C_EMPTY);
+    if (G.grid[i] == C_ANGRY) remove_angry(i); else vacate(i);
     sfx_kill();
     add_pop(i, val);
     G.score += val;
@@ -185,6 +189,7 @@ static void pickup_flask(uint8_t i) {
 /* cell-aligned events on arriving in a cell: loose oppies and the trail (as in the original, these only
    trigger with the player exactly on a cell) */
 static uint8_t arrive_cell(uint8_t i, uint8_t *grew) {
+    if (G.trail_under[i] && !(G.trail_len && i == G.trail[G.trail_len - 1])) { die(); return 1; }   /* own trail, covered */
     switch (G.grid[i]) {
     case C_FRIEND:
         set_cell(i, C_EMPTY); G.n_friend--; *grew = 1; sfx_pickup();
@@ -198,6 +203,11 @@ static uint8_t arrive_cell(uint8_t i, uint8_t *grew) {
     return 0;
 }
 
+/* The original's followers are objects that pass over anything else (an enemy that hopped into the cell the
+   player was leaving, or a stunned enemy, oppie or flask the player jumped over): the occupant keeps the
+   cell and the trail oppie goes under it, reappearing when the occupant leaves (vacate). Writing C_TRAIL
+   over the occupant lost it: an enemy stayed in the angry list with no cell, invisible and harmless, and
+   its next hop blanked whatever held that cell by then (often a newly spawned oppie). */
 static void advance_trail(uint8_t old_head, uint8_t grew) {
     uint8_t k;
     if (grew) { if (G.trail_len < MAX_TRAIL) G.trail_len++; else grew = 0; }
@@ -205,26 +215,32 @@ static void advance_trail(uint8_t old_head, uint8_t grew) {
     if (!grew) {
         uint8_t tail = G.trail[G.trail_len - 1];
         if (G.grid[tail] == C_TRAIL) set_cell(tail, C_EMPTY);
+        else G.trail_under[tail] = 0;
     }
     for (k = G.trail_len - 1; k > 0; k--) G.trail[k] = G.trail[k - 1];
     G.trail[0] = old_head;
-    set_cell(old_head, C_TRAIL);
+    if (G.grid[old_head] == C_EMPTY || G.grid[old_head] == C_TRAIL) set_cell(old_head, C_TRAIL);
+    else G.trail_under[old_head] = 1;
 }
 
 /* B: every trail oppie is judged now (on the pad or not) and resolved one per 10 frames, as the original's
    FollowClear objects do; pending cells are harmless to walk through */
 static void do_drop(void) {
-    uint8_t k, nsaved = 0, i;
+    uint8_t nsaved = 0, i;
     G.drop_anim = 16;
     if (G.trail_len == 0 || G.clear_n) return;
-    {   /* lean loop (no calls): a 48-oppie trail is judged in one frame; every row is redrawn below */
-        uint8_t judge = !G.pad_flash;
-        for (k = 0; k < G.trail_len; k++) {
-            uint8_t s = 0;
-            i = G.trail[k];
-            if (judge && (G.pad_rows[cell_y[i]] & row_mask[cell_x[i]])) { s = 1; nsaved++; }
-            G.gstate[i] = s; G.grid[i] = C_CLEARING;
-        }
+    {   /* lean loop (no calls, few live values: SDCC spills otherwise): a 48-oppie trail is judged in one
+           frame; every row is redrawn below */
+        uint8_t judge = !G.pad_flash, n = G.trail_len;
+        const uint8_t *tp = G.trail;
+        do {
+            uint8_t *g;
+            i = *tp++; g = &G.grid[i];
+            if (*g != C_TRAIL) { G.trail_under[i] = 0; continue; }   /* covered (or listed twice): let it go */
+            *g = C_CLEARING;
+            if (judge && (G.pad_rows[cell_y[i]] & row_mask[cell_x[i]])) { G.gstate[i] = 1; nsaved++; }
+            else G.gstate[i] = 0;
+        } while (--n);
     }
     G.dirty_rows = 0xFFF;
     G.clear_n = G.trail_len; G.clear_k = 0; G.clear_timer = 10;
@@ -253,7 +269,7 @@ static void update_clearing(void) {
     {
         uint8_t i = G.trail[G.clear_k];
         if (G.grid[i] == C_CLEARING) {
-            if (G.gstate[i]) { set_cell(i, C_EMPTY); G.score += (uint32_t)10 * (G.clear_k + 1); add_pop(i, (uint32_t)10 * (G.clear_k + 1)); G.hud_dirty = 1; }
+            if (G.gstate[i]) { vacate(i); G.score += (uint32_t)10 * (G.clear_k + 1); add_pop(i, (uint32_t)10 * (G.clear_k + 1)); G.hud_dirty = 1; }
             else add_angry(i, ENEMY_IDLE);
         }
         if (++G.clear_k == G.clear_n) {
@@ -297,7 +313,7 @@ static uint8_t angry_event(uint8_t i, uint8_t s, uint8_t t) {
         uint8_t d = pick_dir(i, A_DIR(s));
         if (d == D_NONE || st != A_LOOK) { G.gstate[i] = A_IDLE; *tm = ENEMY_IDLE; DIRTY_CELL(i); return i; }
         t = neighbor(cell_x[i], cell_y[i], d);
-        set_cell(i, C_EMPTY); G.gstate[i] = 0;
+        vacate(i); G.gstate[i] = 0;
         set_cell(t, C_ANGRY); G.gstate[t] = A_HOP | (d << 2); G.gtimer[t] = ENEMY_HOP;
         if (G.hop_sprites < MAX_HOP_SPRITES) { G.gstate[t] |= A_SPRITE; G.hop_sprites++; }
         return t;

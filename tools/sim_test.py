@@ -138,6 +138,40 @@ check('T8 queued turn applied at boundary', rd('dir') == d2, (rd('dir'), d2))
 d3 = perp()
 pb.button_press(NAME[d2]); tick(2); pb.button_press(NAME[d3]); tick(2); pb.button_release(NAME[d2]); pb.button_release(NAME[d3])
 check('T8 roll with old dir held is registered', rd('dir_choice') == d3, (rd('dir_choice'), d3))
+# T9/T10 an enemy that hops into the cell the player is leaving (airborne) keeps it: the trail oppie goes under
+# it, as the original's followers pass over enemies. Writing the trail over it left the enemy listed but
+# invisible, and its next hop blanked whatever held that cell by then.
+def trail_over_enemy():
+    turn_to(perp()); align()
+    fx, fy = ahead(1); poke_friend(fx, fy); wr('friend_target', 0); step_once()   # collect: trail of 1
+    px, py = rd('px'), rd('py')
+    press('a', 1); poke_angry(px, py)   # jump, and an enemy lands in the cell being left
+    step_once()
+    c = cell(px, py)
+    check('T9 enemy keeps the cell, trail oppie under it', rd('grid', c) == C_ANGRY and rd('trail_under', c) == 1
+          and rd('trail_len') == 1 and rd('trail', 0) == c and rd('n_angry') == 1,
+          (rd('grid', c), rd('trail_under', c), rd('trail_len'), rd('trail', 0), rd('n_angry')))
+    return c
+def no_ghosts():
+    friends = sum(rd('grid', i) == C_FRIEND for i in range(144))
+    listed = [rd('angry_list', k) for k in range(rd('n_angry'))]
+    return friends == rd('n_friend') and all(rd('grid', i) == C_ANGRY for i in listed) and len(set(listed)) == len(listed)
+c = trail_over_enemy()
+tick(15 - rd('sub')); press('b', 1)   # landed: drop with the only trail oppie covered
+check('T9 drop leaves the covering enemy alone', rd('grid', c) == C_ANGRY and rd('gstate', c) & 3 == 3 and rd('n_angry') == 1
+      and rd('trail_under', c) == 0 and rd('trail_len') == 0 and no_ghosts(), (rd('grid', c), rd('gstate', c), rd('n_angry'), rd('trail_under', c)))
+tick(12); wr('grid', C_EMPTY, c); wr('n_angry', 0); wr('dirty_rows', 0xFFF)
+c = trail_over_enemy()
+d = (rd('dir') + 1) & 3
+t = cell(c % 12 + DXY[d][0], c // 12 + DXY[d][1])
+if not (0 <= c % 12 + DXY[d][0] < 12 and 0 <= c // 12 + DXY[d][1] < 12):
+    d = (d + 2) & 3; t = cell(c % 12 + DXY[d][0], c // 12 + DXY[d][1])
+wr('gstate', 1 | (d << 2), c); wr('gtimer', 1, c); tick(1)   # A_LOOK, hops now
+check('T10 enemy hops off, the trail oppie shows again', rd('grid', c) == C_TRAIL and rd('trail_under', c) == 0 and rd('grid', t) == C_ANGRY
+      and rd('angry_list', 0) == t and rd('hop_sprites') == 1, (rd('grid', c), rd('trail_under', c), rd('grid', t), rd('hop_sprites')))
+tick(16)
+check('T10 hop sprite released, trail moved on', rd('hop_sprites') == 0 and rd('grid', c) == C_EMPTY and no_ghosts(), (rd('hop_sprites'), rd('grid', c)))
+wr('grid', C_EMPTY, t); wr('n_angry', 0); wr('dirty_rows', 0xFFF)
 # T7 death: unpowered walk into an enemy in the next cell
 align(); tick(1); ex, ey = ahead(1); poke_angry(ex, ey); flush(); tick(8)
 check('T7 dead', rd('state') == PS_DEAD, rd('state'))
