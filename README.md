@@ -1,8 +1,7 @@
 # Magic Garden — Game Boy Color port
 
-A "what if it had shipped on the GBC" port of *Magic Garden* (game #5 of UFO 50, Mossmouth).
-Written in C with GBDK-2020, built as a CGB-only MBC5 cartridge image that runs on real hardware
-(any MBC5 flash cart).
+A port of *Magic Garden* from UFO50 (Mossmouth). 
+Written in C with GBDK-2020, built as a ROM that runs on real hardware
 
 Fan project. All characters, names and the original game are (c) Mossmouth. Nothing from the
 original game's data ships in the ROM; the art here is redrawn at GBC resolution.
