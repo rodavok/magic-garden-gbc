@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Magic Garden SFX</title>
+<style>
+:root {
+  --bg: #14171a; --panel: #1c2024; --line: #2c3238; --text: #e6e8e3; --dim: #8f988f;
+  --orig: #e8a3c4; --port: #8fd4a0; --accent: #f4d77a; --missing: #5a6158;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, sans-serif; }
+header { position: sticky; top: 0; z-index: 2; background: var(--bg); border-bottom: 1px solid var(--line);
+  padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; }
+h1 { font-size: 17px; margin: 0; font-weight: 650; letter-spacing: .01em; }
+.ctl { display: flex; gap: 8px; align-items: center; color: var(--dim); font-size: 13px; }
+.ctl input[type=range] { width: 110px; accent-color: var(--accent); }
+.ctl input[type=checkbox] { accent-color: var(--accent); }
+.keys { color: var(--dim); font-size: 12px; margin-left: auto; }
+kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px;
+  padding: 0 4px; color: var(--text); }
+main { padding: 12px 16px 48px; max-width: 1400px; }
+.ev { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px;
+  display: grid; grid-template-columns: 220px 1fr 1fr; gap: 14px; cursor: default; }
+.ev.sel { border-color: var(--accent); }
+.ev h2 { font-size: 15px; margin: 0 0 2px; }
+.ev .when { color: var(--dim); font-size: 12.5px; }
+.ev .note { color: var(--accent); font-size: 12px; margin-top: 6px; }
+.ab { margin-top: 8px; }
+.side { min-width: 0; }
+.lab { font-size: 11.5px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; display: flex; gap: 8px; align-items: baseline; }
+.lab.o { color: var(--orig); } .lab.p { color: var(--port); }
+.lab .nm { text-transform: none; letter-spacing: 0; color: var(--dim); font: 12px ui-monospace, monospace; }
+.clip { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+button { background: #262b30; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px;
+  font: inherit; font-size: 13px; cursor: pointer; }
+button:hover { border-color: var(--dim); }
+button.play { width: 34px; height: 34px; padding: 0; font-size: 13px; flex: none; }
+.o button.play, .clip.o button.play { color: var(--orig); } .clip.p button.play { color: var(--port); }
+.spec { position: relative; height: 64px; overflow-x: auto; overflow-y: hidden; flex: 1; background: #000; border-radius: 4px; }
+.spec img { height: 64px; display: block; image-rendering: auto; cursor: pointer; }
+.spec .head { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); left: 0; display: none; pointer-events: none; }
+.dur { color: var(--dim); font: 11.5px ui-monospace, monospace; width: 44px; text-align: right; flex: none; }
+.variants { display: flex; gap: 4px; margin-bottom: 6px; }
+.variants button { font: 12px ui-monospace, monospace; padding: 2px 8px; }
+.variants button.on { border-color: var(--orig); color: var(--orig); }
+.code { font: 11.5px ui-monospace, monospace; color: var(--dim); white-space: pre-wrap; word-break: break-all; }
+.none { color: var(--missing); font-style: italic; font-size: 13px; padding: 8px 0; }
+@media (max-width: 900px) { .ev { grid-template-columns: 1fr; } .keys { margin-left: 0; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Magic Garden SFX: original vs port</h1>
+  <label class="ctl">Volume <input id="vol" type="range" min="0" max="1" step="0.01" value="0.7"></label>
+  <label class="ctl"><input id="match" type="checkbox" checked> Match loudness</label>
+  <span class="keys"><kbd>↑</kbd><kbd>↓</kbd> select · <kbd>O</kbd> original · <kbd>P</kbd> port · <kbd>Space</kbd> A/B · <kbd>Esc</kbd> stop</span>
+</header>
+<main id="list"></main>
+<script>
+const AC = new (window.AudioContext || window.webkitAudioContext)();
+const master = AC.createGain(); master.connect(AC.destination);
+const buffers = {};
+let data, sel = 0, playing = [], raf = 0;
+const $ = (s, el = document) => el.querySelector(s);
+const vol = $('#vol'), match = $('#match');
+vol.oninput = () => master.gain.value = vol.value; master.gain.value = vol.value;
+
+async function load(file) {
+  if (!buffers[file]) buffers[file] = fetch(file + '?v=' + data.build).then(r => r.arrayBuffer()).then(b => AC.decodeAudioData(b));
+  return buffers[file];
+}
+function gainFor(clip) {
+  if (!match.checked) return 1;
+  const target = 0.12;                              // RMS both sides are brought to, peak kept under 0.95
+  return Math.min(target / Math.max(clip.rms, 1e-4), 0.95 / Math.max(clip.peak, 1e-4));
+}
+function stop() {
+  for (const p of playing) { try { p.src.stop(); } catch (e) {} p.head.style.display = 'none'; }
+  playing = []; cancelAnimationFrame(raf);
+}
+async function play(clip, el, when = 0, rate = 1) {
+  const buf = await load(clip.wav);
+  if (AC.state === 'suspended') await AC.resume();
+  const src = AC.createBufferSource(), g = AC.createGain();
+  src.buffer = buf; src.playbackRate.value = rate; g.gain.value = gainFor(clip);
+  src.connect(g).connect(master);
+  const t0 = AC.currentTime + when; src.start(t0);
+  const head = $('.head', el), img = $('img', el);
+  const p = { src, head, img, t0, dur: buf.duration / rate };
+  playing.push(p);
+  src.onended = () => { head.style.display = 'none'; playing = playing.filter(q => q !== p); };
+  cancelAnimationFrame(raf); raf = requestAnimationFrame(tick);
+  return p.dur;
+}
+function tick() {
+  const now = AC.currentTime;
+  for (const p of playing) {
+    const f = (now - p.t0) / p.dur;
+    if (f < 0 || f > 1) { p.head.style.display = 'none'; continue; }
+    p.head.style.display = 'block'; p.head.style.left = (f * p.img.clientWidth) + 'px';
+  }
+  if (playing.length) raf = requestAnimationFrame(tick);
+}
+
+function clipRow(clip, cls) {
+  const row = document.createElement('div'); row.className = 'clip ' + cls;
+  const w = Math.max(40, clip.dur * data.pxPerSec) * 0.5;   // half scale: 200 px a second, same on both sides
+  row.innerHTML = `<button class="play" title="Play">▶</button>
+    <div class="spec"><img src="${clip.png}?v=${data.build}" style="width:${w}px" alt=""><div class="head"></div></div>
+    <span class="dur">${(clip.dur * 1000).toFixed(0)} ms</span>`;
+  const go = () => { stop(); play(clip, $('.spec', row)); };
+  $('button', row).onclick = go; $('img', row).onclick = go;
+  return row;
+}
+
+function render() {
+  const list = $('#list');
+  data.events.forEach((ev, i) => {
+    const el = document.createElement('section'); el.className = 'ev'; el.dataset.i = i;
+    const info = document.createElement('div');
+    info.innerHTML = `<h2>${ev.title}</h2><div class="when">${ev.when}</div>` +
+      (ev.note ? `<div class="note">${ev.note}</div>` : '');
+    if (ev.orig.length && ev.port.length) {
+      const ab = document.createElement('button'); ab.className = 'ab'; ab.textContent = 'A/B  orig → port';
+      ab.onclick = () => abPlay(i); info.appendChild(ab);
+    }
+    ev.cur = 0;
+    const o = document.createElement('div'); o.className = 'side';
+    const p = document.createElement('div'); p.className = 'side';
+    const n = Math.max(ev.orig.length, ev.port.length);
+    const portFoot = k => { const c = ev.port[Math.min(k, ev.port.length - 1)];
+      const code = document.createElement('div'); code.className = 'code'; code.textContent = c.code; return [clipRow(c, 'p'), code]; };
+    if (ev.orig.length) {
+      o.innerHTML = `<div class="lab o">Original <span class="nm">${ev.orig.map(c => c.name.replace('orig_', '')).join(' ')}</span></div>`;
+      if (n > 1) {
+        const v = document.createElement('div'); v.className = 'variants';
+        for (let k = 0; k < n; k++) {
+          const b = document.createElement('button'); b.textContent = 'abcdefgh'[k];
+          if (!k) b.className = 'on';
+          b.onclick = () => {
+            ev.cur = k; v.querySelectorAll('button').forEach((x, j) => x.className = j === k ? 'on' : '');
+            const r = clipRow(ev.orig[Math.min(k, ev.orig.length - 1)], 'o'); o.replaceChild(r, $('.clip', o));
+            if (ev.port.length > 1) { const [pr, code] = portFoot(k); p.replaceChild(pr, $('.clip', p)); p.replaceChild(code, $('.code', p)); }
+            stop(); playOrig(i);
+          };
+          v.appendChild(b);
+        }
+        const rnd = document.createElement('button'); rnd.textContent = 'random'; rnd.title = 'What the game does';
+        rnd.onclick = () => v.children[Math.floor(Math.random() * n)].click();
+        v.appendChild(rnd); o.appendChild(v);
+      }
+      o.appendChild(clipRow(ev.orig[0], 'o'));
+    } else o.innerHTML = '<div class="lab o">Original</div><div class="none">No sound in the original.</div>';
+    if (ev.port.length) {
+      const nm = ev.port.length > 1 ? ev.port.map(c => c.name.replace('port_', '')).join(' ') : ev.port[0].name.replace('port_', '') + '()';
+      p.innerHTML = `<div class="lab p">Port <span class="nm">${nm}</span></div>`;
+      p.append(...portFoot(0));
+    } else p.innerHTML = '<div class="lab p">Port</div><div class="none">Silent in the port.</div>';
+    el.append(info, o, p);
+    el.onmousedown = () => select(i);
+    list.appendChild(el);
+  });
+  select(0);
+}
+function select(i) {
+  sel = Math.max(0, Math.min(data.events.length - 1, i));
+  document.querySelectorAll('.ev').forEach((e, j) => e.classList.toggle('sel', j === sel));
+}
+function sideEl(i, s) { return document.querySelectorAll('.ev')[i].children[s]; }
+function playOrig(i) {
+  const ev = data.events[i]; if (!ev.orig.length) return 0;
+  return play(ev.orig[Math.min(ev.cur || 0, ev.orig.length - 1)], $('.spec', sideEl(i, 1)));
+}
+function playPort(i, when = 0) {
+  const ev = data.events[i]; if (!ev.port.length) return 0;
+  return play(ev.port[Math.min(ev.cur || 0, ev.port.length - 1)], $('.spec', sideEl(i, 2)), when);
+}
+async function abPlay(i) {
+  stop(); select(i);
+  const d = await playOrig(i);
+  playPort(i, (d || 0) + 0.35);
+}
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  const k = e.key.toLowerCase();
+  if (k === 'arrowdown' || k === 'j') { select(sel + 1); document.querySelectorAll('.ev')[sel].scrollIntoView({ block: 'nearest' }); }
+  else if (k === 'arrowup' || k === 'k') { select(sel - 1); document.querySelectorAll('.ev')[sel].scrollIntoView({ block: 'nearest' }); }
+  else if (k === 'o') { stop(); playOrig(sel); }
+  else if (k === 'p') { stop(); playPort(sel); }
+  else if (k === ' ') abPlay(sel);
+  else if (k === 'escape') stop();
+  else return;
+  e.preventDefault();
+});
+fetch('sfx.json', { cache: 'no-store' }).then(r => r.json()).then(d => { data = d; render(); });
+</script>
+</body>
+</html>

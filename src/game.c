@@ -274,7 +274,7 @@ static void update_clearing(void) {
         }
         if (++G.clear_k == G.clear_n) {
             G.clear_n = 0;
-            if (G.saved >= WIN_SAVED) { G.state = PS_WIN; G.state_timer = 0; sfx_win(); }
+            if (G.saved >= WIN_SAVED) { G.state = PS_WIN; G.state_timer = 0; }
         }
     }
 }
@@ -375,7 +375,6 @@ static void update_spawners(void) {
     } else if (--G.pad_life == 0) {
         /* rank+1 mushrooms, but the original shares 20 random tries among them and stops when they run out */
         uint8_t n = G.palette_set + 1, tries = 20;
-        sfx_spawn();
         while (n && tries--) if (spawn_appear(C_APPEAR_MUSH, 1)) n--;
         make_pad();
     } else if (++G.pad_anim == PAD_BLINK) {

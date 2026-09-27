@@ -28,6 +28,20 @@
         "build/song"
       ],
       "port": 8766
+    },
+    {
+      "name": "sfx-board",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8767",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "build/sfx"
+      ],
+      "port": 8767
     }
   ]
 }

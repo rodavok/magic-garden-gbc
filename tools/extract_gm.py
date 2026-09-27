@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Extract Magic Garden (internal game 27) reference assets from a local UFO 50 install.
 Reads GameMaker data.win + Textures/*.yytex (bz2-wrapped QOI) + audiogroup_*.dat.
-Output: reference/sprites/<name>_<frame>.png, reference/audio/*.wav|ogg
+Output: reference/sprites/<name>_<frame>.png, reference/audio/*.wav|ogg   (--audio-only skips the sprites)
 Reference use only; all assets are (c) Mossmouth."""
 import bz2, os, struct, sys, glob
 from PIL import Image
@@ -86,7 +86,7 @@ def tpag(ptr):
     return dict(sx=f[0], sy=f[1], sw=f[2], sh=f[3], dx=f[4], dy=f[5], dw=f[6], dh=f[7], bw=f[8], bh=f[9], tex=f[10])
 
 # ---- SPRT ----
-so, ss = C['SPRT']; sn = u32(so)
+so, ss = C['SPRT']; sn = 0 if '--audio-only' in sys.argv else u32(so)
 os.makedirs(os.path.join(OUT, 'sprites'), exist_ok=True)
 report = []
 for i in range(sn):
@@ -113,7 +113,7 @@ for i in range(sn):
         frame.paste(src, (t['dx'], t['dy']))
         frame.save(os.path.join(OUT, 'sprites', f'{name}_{k:02d}.png'))
     report.append(f'{name}\t{w}x{h}\tframes={cnt}\torigin=({ox},{oy})\tspeed={spd:g}({"fps" if spdtype==0 else "frames/frame"})\ttex={t["tex"]}')
-open(os.path.join(OUT, 'sprites', 'INDEX.txt'), 'w').write('\n'.join(report) + '\n')
+if report: open(os.path.join(OUT, 'sprites', 'INDEX.txt'), 'w').write('\n'.join(report) + '\n')
 print('\n'.join(report))
 
 # ---- Objects ----
@@ -123,7 +123,9 @@ objs27 = [o for o in objs if o.startswith('o27') or o.startswith('obj27')]
 open(os.path.join(OUT, 'objects_27.txt'), 'w').write('\n'.join(objs27) + '\n')
 print('objects:', objs27)
 
-# ---- Audio: AGRP names, and group-29 (bgm27) sounds ----
+# ---- Audio: AGRP names, the bgm27 tracks and the shared sfx Magic Garden plays (see reference/gml) ----
+SFX27 = {'sfx_collect05a', 'sfx_collect05b', 'sfx_collect05c', 'sfx_collect05d', 'sfx_jump03', 'sfx_nope03',
+         'sfx_score03', 'sfx_glass00', 'sfx_special02', 'sfx_die00', 'sfx_select06', 'sfx_bonk00'}
 ao, asz = C['AGRP']; an = u32(ao)
 agrp = [rstr(u32(u32(ao+4+4*i))) for i in range(an)]
 sdo, sds = C['SOND']; sdn = u32(sdo)
@@ -131,7 +133,7 @@ os.makedirs(os.path.join(OUT, 'audio'), exist_ok=True)
 audio_cache = {}
 for i in range(sdn):
     e = u32(sdo+4+4*i); nm = rstr(u32(e)); grp = i32(e+28); aid = i32(e+32)
-    if not nm.startswith('bgm27'): continue
+    if not (nm.startswith('bgm27') or nm in SFX27): continue
     gname = agrp[grp]
     if grp not in audio_cache:
         f = os.path.join(GAME, f'{gname}.dat'); buf = open(f, 'rb').read(); cc = chunks_of(buf)
