@@ -5,7 +5,7 @@ with its notes, per-channel solo/mute, bar looping. Run tools/song_render.py fir
 
 usage: song_page.py [score]
 """
-import json, os, shutil, subprocess, sys
+import json, os, shutil, subprocess, sys, time
 import numpy as np, librosa
 from PIL import Image
 sys.path.insert(0, os.path.dirname(__file__))
@@ -42,10 +42,14 @@ if __name__ == '__main__':
     # the score as text, one line per row, for the per-bar table
     for num, label, rs in s.bars:
         for r in rs: data['grid'].append([cl.text for cl in r])
+    data['build'] = int(time.time())       # cache-buster for the audio URLs
+    if os.path.exists(os.path.join(OUT, 'alt.wav')):     # an earlier render kept for A/B: the page offers it as a third source
+        data['alt'] = open(os.path.join(OUT, 'alt.txt')).read().strip() if os.path.exists(os.path.join(OUT, 'alt.txt')) else 'Previous GB'
     json.dump(data, open(os.path.join(OUT, 'song.json'), 'w'))
     spectro(ORIG, 60.0, os.path.join(OUT, 'spec_orig.png'))
     spectro(os.path.join(OUT, 'full.wav'), 59.7275, os.path.join(OUT, 'spec_gb.png'))
     ogg(ORIG, os.path.join(OUT, 'original.ogg'))
     for n in ('full', 'lead', 'chord', 'bass', 'noise'): ogg(os.path.join(OUT, n + '.wav'), os.path.join(OUT, n + '.ogg'))
+    if 'alt' in data: ogg(os.path.join(OUT, 'alt.wav'), os.path.join(OUT, 'alt.ogg'))
     shutil.copy(os.path.join(os.path.dirname(__file__), 'song_page.html'), os.path.join(OUT, 'index.html'))
     print('wrote', OUT + '/index.html')

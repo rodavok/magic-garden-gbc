@@ -12,7 +12,8 @@
    Channel 2 has no hardware sweep, so sfx_update() walks the frequency itself, one or two sweep
    steps a frame, writing the pitch without the restart bit so the envelope keeps running.
    The effects measured from the original (pickup, jump, power-up) are per-frame tables from
-   tools/sfx_tables.py: one pitch a frame, retriggering only where the table sets a new volume. */
+   tools/sfx_tables.py: one pitch a frame, retriggering only where the table sets a new volume.
+   Every effect peaks at about 10 so it stays under the melody (CH1 lead at 15). */
 static struct { uint8_t frames, shift, down; uint16_t freq; } sw;
 static const sfx_step_t *seq;
 static uint8_t seq_left;
@@ -80,8 +81,8 @@ void sfx_update(void) {
 }
 
 void sfx_pickup(void)   { sfx_prog(SFX_PICKUP_A + (DIV_REG & 3)); }   /* the original picks one of four */
-void sfx_save(void)     { ch2sw(0x80, 0xF3, 1400, 6, 0, 18); }   /* 200 Hz sweeping up */
-void sfx_bad_drop(void) { ch2sw(0x40, 0xF4, 1700, 5, 1, 18); }   /* 380 Hz sagging down */
+void sfx_save(void)     { ch2sw(0x80, 0xA3, 1400, 6, 0, 18); }   /* 200 Hz sweeping up */
+void sfx_bad_drop(void) { ch2sw(0x40, 0xA4, 1700, 5, 1, 18); }   /* 380 Hz sagging down */
 void sfx_jump(void)     { sfx_prog(SFX_JUMP); }
 void sfx_flask(void)    { sfx_prog(SFX_POWERUP); }
 void sfx_kill(void)     { sfx_prog(SFX_EAT); }

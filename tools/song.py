@@ -9,6 +9,9 @@ eighth note at 163.6 BPM), 8 rows to a bar, one column per Game Boy channel.
     duty  1 lead  duty=25 vol=12 env=-4     pulse instrument: duty 12/25/50/75, start volume 0-15,
     duty  2 chord duty=50 vol=9  env=-2     env=-n fades one step per n/64 s (+n grows, 0 holds)
     wave  1 bass  vol=100 wave=0            wave instrument: volume 100/50/25, waveform index
+    wave  2 flute vol=100 wave=1 cycles=4   cycles: how many periods the waveform holds (1, 2, 3 or 4). Notes are
+                                            written at the pitch that sounds; 4 cycles reach the top octave and,
+                                            played from the table two octaves down, stay within ~2 cents
     noise 1 tick  vol=4 env=-1              noise instrument
     waveform 0 8BEFECA989999877888766667653101 4   32 hex digits (spaces ignored)
 
@@ -144,7 +147,12 @@ def compile_song(s, out):
             cl = R[i][c]; note, instr, fx = 90, 0, 0
             if cl.kind == 'note':
                 m = cl.note
-                h = m - (24 if c == 2 else 36)
+                if c == 2:   # the wave channel plays its 32 samples at half the pulse rate: a one-cycle waveform
+                    # sounds an octave below the note table, a 4-cycle one an octave above (and in finer tune)
+                    cyc = s.wave.get(cl.instr or 1, ('', {}))[1].get('cycles', 1)
+                    h = m - {1: 24, 2: 36, 3: 43, 4: 48}[cyc]   # 3 cycles: a fifth above, +2 cents
+                else:
+                    h = m - 36
                 if not 0 <= h < 72: sys.exit('%s: row %d %s out of range for %s' % (s.name, i, cl.text, CHANNELS[c]))
                 note, instr = h, cl.instr or 1
                 cur_arp = cl.arp; cur_note = m

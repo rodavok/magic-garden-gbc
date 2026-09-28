@@ -36,15 +36,37 @@ Sound effects: `~/.local/opt/pyboy-venv/bin/python tools/sfx_page.py` records ev
 (serve with the "sfx-board" launch entry, port 8767). The originals come from `tools/extract_gm.py --audio-only`.
 
 `tools/draft_gameplay.py` wrote the first draft of the score from the OGG (it overwrites the score: don't rerun it).
-What the original's gameplay track is: intro 0-3 (bass + chords only, no lead: everything above C5 there is
-chord overtones) | B 4-11, B' 12-17 (= 4-9) | turnaround 18-19 | intro 20-23 | C 24-31, C' 32-39 (loud 4-note
-stabs around G3-A4 and a bass that answers itself an octave up on rows 2 and 6; there is no high lead - the faint
-A6/E6 line is not worth a channel) | outro 40-43 (C5 A#4 F4 ... C5 A#4). No percussion anywhere: CH4 is silent.
-Bass strikes rows 1, 2, 5, 7 of the bar in the intro and B; chord stabs rows 0, 3, 5. In C, CH1 plays the top
-note of each stab and CH2 arpeggiates the rest. `tools/song_check.py [--bars a-b] [--lead-lo 55]` lists, per bar
+What the original's gameplay track is: intro 0-3 (bass, chords and a quiet lead figure D5 C5 G4 . C5 in bar 0, C5
+in bar 2) | B 4-11, B' 12-17 (= 4-9) | turnaround 18-19 | intro 20-23 (= 0-3) | C 24-31, C' 32-39 (loud 4-note
+stabs around G3-A4, a bass that answers itself an octave up on rows 2 and 6, and the section's melody: a near-pure
+whistle tone high up, A6 E6 B6 | G#6 A6 E7 | D7 E7 A7~ in dotted quarters played 2 rows on, 1 off, with a fast
+tremolo and a scoop into each note) | outro 40-43 (C5 A#4 F4 ... C5 A#4). No percussion anywhere: CH4 is silent.
+Bass strikes rows 1, 2, 5, 7 of the bar in the intro and B; chord stabs rows 0, 3, 5. In C the wave channel plays the
+whistle melody as a real sine at the original's octave, level with the stabs as in the original (wave
+instruments 2/4, 4- or 3-cycle per note for tuning, half-height waves). Keep it there: an octave lower it sits on the
+stabs' upper harmonics, masks them, and its G#/C# against their G turn into a harsh rub that sounds like a wrong key, CH1 plays the bass (a square: a pulse
+stops at C2, so bar 28's A#1 is an octave up) and CH2 carries the stabs, alternating two stab notes where there are two. A pure tone has no
+harmonics to test, so look for it as a strong peak with weak 2f and 3f that no lower note explains (not the 5th/6th
+harmonic of a stab note: bars 31 and 39 are rests although D4's harmonics show there). `tools/song_check.py [--bars a-b] [--lead-lo 55]` lists, per bar
 and channel, what the score strikes against what attacks in the original.
 The GB plays each chord as a 3-note arpeggio on CH2 (`C4^47`). In spectrogram work, CQT bin 3(m-24) is centred
 on note m: grouping bins 3k..3k+2 reads a third of a semitone sharp.
+The original's lead is an octave stack: f, 2f, 4f, 8f at about 0, -1.4, -5, -20 dB with almost no odd harmonics, so
+its note is the bottom of the stack (a chord tone has a weak 2f and strong 3f; the bass a strong 2f and 3f). Test a
+note's octave by those levels, never by the strongest peak: that is usually 2f, which read the lead an octave high.
+It decays ~1 dB per 20 ms after a 40 ms hold (GB env=-1). The composer wrote echoes into it: quieter repeats of a
+phrase usually 3 rows later (bar 7 repeats D5 A4 every 2 rows); the score gives them lead instruments 4-7 (vol 12-3).
+Soft "lead" peaks at -18 dB exactly on the chord rows (0, 3, 5) are chord harmonics, not notes.
+High notes are out of tune on the GB: pitch is an integer period, so at A6-A7 a note can be 10-20 cents off (the
+pulse lead in B is fine below G5). A wave holding k sine cycles sounds k/2 x its table note (`cycles=` in the score);
+a 3- and a 4-cycle wave give two period grids to pick from if a melody has to sit that high.
+Fewer steps per sine cycle means brighter: 4 cycles (8 steps) put -17 dB partials at 7f and 9f, which an octave
+down land at 5-8 kHz and sound harsh. Scale a wave down in the waveform itself (optimize the 4-bit shape), never
+with the channel's 50/25 % volume, which drops bits and adds low harmonics.
+so a 3- and a 4-cycle wave give two period grids; each high melody note uses the closer one (within 8.5 cents).
+Never cut or mute a wave-channel note between phrases: its output drops from the waveform's mean (~7.5) to 0 and
+thumps (-11 dB below 300 Hz); rests play a flat wave at 7 instead (`hush`, instrument 3). Measuring a GB render: scale time by
+60/59.7275, don't resample - resampling shifts every pitch 7.9 cents sharp.
 
 Regenerating the other songs (only if the transcriber or reference audio changes):
 
@@ -116,7 +138,8 @@ Never run the PyBoy tests while `make` is still writing the ROM: they read a hal
 - hUGE instrument ids are 1-based: the driver does `dec a` before indexing, so instrument 1 is entry [0]
   of the table. A leading "unused" row silently shifts every instrument by one - that bug had the melody
   playing a decaying 50% patch while the harmony got the loud sustained one.
-- Channel 1 is the melody. No effect that fires during play may touch it, or the tune drops out for a
+- Channel 1 is the melody. `tools/sfx_tables.py` GAIN keeps every effect under it (a 50 % pulse at 11 out-RMSes the
+  12.5 % lead at 15). No effect that fires during play may touch it, or the tune drops out for a
   third of a second every jump: gameplay effects use channel 2 (the harmony, which sounds about one row
   in seven) or channel 4. Only death uses channel 1, and the track is ending by then.
   Channel 2 has no hardware sweep, so `sfx_update()` walks the frequency itself once a frame, writing
@@ -174,10 +197,9 @@ verified in SameBoy, mGBA and John GBC.
 
 ## Remaining features (backlog)
 
-1. Music quality: the gameplay track was rebuilt as a hand-editable score (res/music/gameplay.song) and is
-   being fixed bar by bar by ear with the review page. Least certain in the draft: the lead in bars 7, 10-11,
-   18-19 and all of C/C'/outro (24-43), chord qualities where the original plays 4-note chords. The win/lose/
-   ending songs are still the old auto-transcriptions in src/music_data.c.
+1. Music quality: the lead of bars 0-23 and 40-43 was re-derived row by row from the octave-stack signature (with
+   its echoes and dynamics). Section C's whistle melody was transcribed the same way. Still from the earlier draft: chord qualities where the original plays 4-note chords, and
+   the win/lose/ending songs (old auto-transcriptions in src/music_data.c).
 2. Sound effects closer to the originals (sfx_special02 on flask, the 150/100/50 ticks, witch cackle)
 3. Ending polish: the witch walking in beside the Gardener, a happy sprite, the original's credit roll timing
 4. Palette fade on transitions

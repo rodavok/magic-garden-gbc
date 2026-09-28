@@ -52,6 +52,9 @@ EFFECTS = {
         (1750, 'v7-1'), 1750, 1750, (1750, 'v0')]),
 }
 DUTY = {12: 0x00, 25: 0x40, 50: 0x80, 75: 0xC0}
+# Every volume above is scaled by GAIN so the effects sit under the melody: the lead (CH1) is a 12.5 % pulse at 15,
+# RMS ~0.33 x 15 = 5; a 50 % pickup at 11 was 0.5 x 11 = 5.5, louder than the tune. 0.7 is -3 dB.
+GAIN = 0.7
 
 def gb_x(hz):
     x = round(2048 - 131072 / hz)
@@ -62,6 +65,7 @@ def env(code):
     m = re.fullmatch(r'v(\d+)(?:([+-])(\d))?', code)
     assert m, code
     v = int(m[1]); assert 0 <= v <= 15, code
+    v = max(1, round(v * GAIN)) if v else 0
     pace = int(m[3] or 0); up = m[2] == '+'
     e = (v << 4) | (0x08 if up else 0) | pace
     return e if e else 0x08            # NR22 = 0 would switch the DAC off; 0x08 is silent but keeps it on

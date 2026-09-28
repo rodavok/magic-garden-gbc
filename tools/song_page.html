@@ -50,7 +50,7 @@ label { color: var(--dim); display: inline-flex; gap: 6px; align-items: center; 
   <h1>Gameplay loop</h1>
   <button id="play" title="Space">&#9654; Play</button>
   <div class="grp"><span>Listen to</span>
-    <button id="srcOrig" class="on" title="O">Original</button><button id="srcGb" title="G">Game Boy</button>
+    <button id="srcOrig" class="on" title="O">Original</button><button id="srcGb" title="G">Game Boy</button><button id="srcAlt" title="P" hidden>Previous GB</button>
   </div>
   <div class="grp" id="chans"><span>GB channels</span></div>
   <button id="loop" title="L">Loop bar</button>
@@ -92,7 +92,7 @@ function savePref() { try { localStorage.setItem('songReview', JSON.stringify({ 
 try { const p = JSON.parse(localStorage.getItem('songReview') || '{}'); if (p.px) px = p.px; } catch (e) {}
 $('zoom').value = px;
 
-fetch('song.json').then(r => r.json()).then(d => { S = d; build(); loadAudio(); });
+fetch('song.json', { cache: 'no-store' }).then(r => r.json()).then(d => { S = d; if (S.alt) { $('srcAlt').hidden = false; $('srcAlt').textContent = S.alt; } build(); loadAudio(); });
 
 function lanesRange(c) {
   let lo = 999, hi = 0;
@@ -176,15 +176,17 @@ function draw() {
 async function loadAudio() {
   ctx = new (window.AudioContext || window.webkitAudioContext)();
   const files = { orig: 'original.ogg', lead: 'lead.ogg', chord: 'chord.ogg', bass: 'bass.ogg', noise: 'noise.ogg', full: 'full.ogg' };
+  if (S.alt) files.alt = 'alt.ogg';                        // an earlier GB render kept for A/B (build/song/alt.wav)
   await Promise.all(Object.entries(files).map(async ([k, f]) => {
-    const a = await fetch(f).then(r => r.arrayBuffer()); buf[k] = await ctx.decodeAudioData(a);
+    const a = await fetch(f + '?v=' + (S.build || 0)).then(r => r.arrayBuffer()); buf[k] = await ctx.decodeAudioData(a);
   }));
   // match loudness: the GB mix is scaled to the original's RMS
   const rms = b => { const d = b.getChannelData(0); let s = 0; for (let i = 0; i < d.length; i += 7) s += d[i] * d[i]; return Math.sqrt(s / (d.length / 7)); };
   gainGb = rms(buf.orig) / (rms(buf.full) || 1);
+  if (buf.alt) gainAlt = rms(buf.orig) / (rms(buf.alt) || 1);
   $('status').textContent = 'ready';
 }
-let gainGb = 1;
+let gainGb = 1, gainAlt = 1;
 
 function curRow() {
   if (!playing) return row0;
@@ -208,6 +210,7 @@ function start(row) {
   gains = {};
   gains.orig = mk('orig', src === 'orig' ? 1 : 0, 'orig');
   for (const c of CH) gains[c] = mk(c, src === 'gb' && enabled[c] ? gainGb : 0, 'gb');
+  if (buf.alt) gains.alt = mk('alt', src === 'alt' ? gainAlt : 0, 'gb');
   playing = true; $('play').innerHTML = '&#10074;&#10074; Pause';
 }
 function stopNodes() { nodes.forEach(n => { try { n.stop(); } catch (e) {} }); nodes = []; }
@@ -215,7 +218,7 @@ function pause() { row0 = curRow(); stopNodes(); playing = false; $('play').inne
 function seek(row) { if (playing) start(row); else { row0 = row; updateHead(true); } }
 function setSrc(s) {
   if (s === src) return; const r = curRow(); src = s;
-  $('srcOrig').classList.toggle('on', s === 'orig'); $('srcGb').classList.toggle('on', s === 'gb');
+  $('srcOrig').classList.toggle('on', s === 'orig'); $('srcGb').classList.toggle('on', s === 'gb'); $('srcAlt').classList.toggle('on', s === 'alt');
   $('spec').src = s === 'orig' ? 'spec_orig.png' : 'spec_gb.png';
   if (playing) start(r); else row0 = r;
 }
@@ -229,7 +232,7 @@ function toggleCh(c, solo) {
 function toggleLoop() { looping = !looping; $('loop').classList.toggle('on', looping); if (playing) start(curRow()); }
 
 $('play').onclick = () => { if (!ctx || !buf.orig) return; ctx.resume(); playing ? pause() : start(row0); };
-$('srcOrig').onclick = () => setSrc('orig'); $('srcGb').onclick = () => setSrc('gb');
+$('srcOrig').onclick = () => setSrc('orig'); $('srcGb').onclick = () => setSrc('gb'); $('srcAlt').onclick = () => setSrc('alt');
 $('loop').onclick = toggleLoop;
 $('showNotes').onchange = draw;
 $('zoom').oninput = e => { px = +e.target.value; savePref(); draw(); };
@@ -237,6 +240,7 @@ document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
   if (e.code === 'Space') { e.preventDefault(); $('play').click(); }
   else if (e.key === 'o' || e.key === 'O') setSrc('orig');
+  else if ((e.key === 'p' || e.key === 'P') && S.alt) setSrc('alt');
   else if (e.key === 'g' || e.key === 'G') setSrc('gb');
   else if (e.key === 'Tab') { e.preventDefault(); setSrc(src === 'orig' ? 'gb' : 'orig'); }
   else if (e.key === 'l' || e.key === 'L') toggleLoop();
